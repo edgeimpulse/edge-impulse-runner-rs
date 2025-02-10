@@ -3,6 +3,7 @@ use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::time::{Duration, Instant};
 use std::process::{Child};
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::error::EimError;
 use crate::messages::*;
@@ -37,6 +38,7 @@ pub struct EimModel {
     debug: bool,
     _process: Child, // Keep the process alive while the model exists
     model_info: Option<ModelInfo>,
+    message_id: AtomicU32,
 }
 
 impl EimModel {
@@ -98,6 +100,7 @@ impl EimModel {
             debug,
             _process: process,
             model_info: None,
+            message_id: AtomicU32::new(1),
         };
 
         // Send initial hello message to establish communication
@@ -142,10 +145,15 @@ impl EimModel {
         )))
     }
 
+    /// Get the next message ID
+    fn next_message_id(&self) -> u32 {
+        self.message_id.fetch_add(1, Ordering::Relaxed)
+    }
+
     fn send_hello(&mut self) -> Result<(), EimError> {
         let hello_msg = HelloMessage {
             hello: 1,
-            id: 1,
+            id: self.next_message_id(),
         };
 
         let msg = serde_json::to_string(&hello_msg)?;
@@ -223,7 +231,7 @@ impl EimModel {
 
         let msg = ClassifyMessage {
             classify: features,
-            id: 2, // TODO: Implement message ID counter
+            id: self.next_message_id(),
             debug,
         };
 
@@ -290,7 +298,7 @@ impl EimModel {
 
         let msg = ClassifyMessage {
             classify: features,
-            id: 2, // TODO: Implement message ID counter
+            id: self.next_message_id(),
             debug: None,
         };
 
