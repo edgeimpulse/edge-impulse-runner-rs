@@ -89,6 +89,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+
 ## Examples
 
 ### Basic Classification
@@ -126,6 +127,10 @@ The features array format depends on your model:
 - For accelerometer: X, Y, Z values
 - For other sensors: Check your model's specifications
 
+## Development
+### Running Tests
+```cargo test```
+
 ### Error Handling
 The crate provides detailed error types through `EimError`:
 
@@ -156,10 +161,6 @@ fn main() {
     }
 }
 ```
-
-### Development
-#### Running Tests
-```cargo test```
 
 ## Acknowledgments
 This crate is designed to work with Edge Impulse's machine learning models. For more information about Edge Impulse and their ML deployment solutions, visit [Edge Impulse](https://edgeimpulse.com/).
