@@ -5,12 +5,12 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Path to the .eim model file (relative to current directory or absolute)
+    /// Path to the .eim model file
     #[arg(short, long)]
     model: PathBuf,
 
-    /// Features array as comma-separated values (e.g., "0.1,0.2,0.3")
-    #[arg(short, long)]
+    /// Raw features string
+    #[arg(short, long, allow_hyphen_values = true)]
     features: String,
 
     /// Enable debug output
@@ -18,26 +18,26 @@ struct Args {
     debug: bool,
 }
 
+fn parse_features(s: &str) -> Result<Vec<f32>, String> {
+    s.trim_matches(|c| c == '\'' || c == '"')
+        .split(',')
+        .map(|s| s.trim().parse::<f32>()
+            .map_err(|e| format!("Invalid feature value '{}': {}", s, e)))
+        .collect()
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    // Convert relative path to absolute
-    let model_path = if args.model.is_relative() {
-        std::env::current_dir()?.join(args.model)
+    // Parse features from raw string
+    let features = parse_features(&args.features)?;
+
+    // Adjust path to be relative to project root
+    let model_path = if !args.model.is_absolute() {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(&args.model)
     } else {
         args.model
     };
-
-    // Verify the file exists
-    if !model_path.exists() {
-        return Err(format!("Model file not found: {}", model_path.display()).into());
-    }
-
-    // Parse features string into vector
-    let features: Vec<f32> = args.features
-        .split(',')
-        .map(|s| s.trim().parse::<f32>())
-        .collect::<Result<Vec<f32>, _>>()?;
 
     // Create model instance
     let mut model = if args.debug {
