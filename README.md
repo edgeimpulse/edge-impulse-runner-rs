@@ -1,5 +1,5 @@
 # Edge Impulse Runner
-[![Edge Impulse Runner Tests](https://github.com/{org}/{repo}/actions/workflows/edge-impulse-runner.yml/badge.svg)](https://github.com/{org}/{repo}/actions/workflows/edge-impulse-runner.yml)
+[![Edge Impulse Runner Tests](https://github.com/ferjm/edge-impulse-runner-rs/actions/workflows/edge-impulse-runner.yml/badge.svg)](https://github.com/ferjm/edge-impulse-runner-rs/actions/workflows/edge-impulse-runner.yml)
 
 A Rust library for running Edge Impulse Linux models (EIM). This crate provides a safe and easy-to-use interface for interacting with Edge Impulse machine learning models compiled for Linux.
 
