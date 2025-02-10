@@ -3,6 +3,7 @@ name = "edge_impulse_runner"
 version = "0.1.0"
 edition = "2021"
 description = "A Rust library for running Edge Impulse Linux models"
+authors = ["Fernando Jiménez Moreno <fernando@edgeimpulse.com>"]
 license = "MIT"
 
 [dependencies]
