@@ -190,4 +190,4 @@ This crate is designed to work with Edge Impulse's machine learning models. For 
 
 
 ## License
-This project is licensed under the Apache License 2.0 - see the LICENSE file for details.
+This project is licensed under the BSD 3-Clause Clear License - see the LICENSE file for details.

@@ -17,11 +17,13 @@ pub struct ClassifyMessage {
     pub debug: Option<bool>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Debug, Deserialize)]
 pub struct ModelInfo {
     pub success: bool,
+    #[allow(dead_code)]
     pub id: u32,
     pub model_parameters: ModelParameters,
+    #[allow(dead_code)]
     pub project: ProjectInfo,
 }
 
@@ -69,6 +71,7 @@ pub(crate) struct ConfigOptions {
 #[derive(Deserialize, Debug)]
 pub(crate) struct ConfigResponse {
     pub success: bool,
+    #[allow(dead_code)]
     pub id: u32,
 }
 

@@ -42,6 +42,7 @@ pub struct EimModel {
     _process: Child, // Keep the process alive while the model exists
     model_info: Option<ModelInfo>,
     message_id: AtomicU32,
+    #[allow(dead_code)]
     child: Option<Child>,
 }
 
@@ -310,6 +311,7 @@ impl EimModel {
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn start_process(path: &Path, _debug: bool) -> Result<(Child, UnixStream), EimError> {
         // Create a temporary socket path in the system's temp directory
         let socket_path = std::env::temp_dir().join("eim_socket");
@@ -332,6 +334,7 @@ impl EimModel {
         Ok((child, stream))
     }
 
+    #[allow(dead_code)]
     fn restart(&mut self) -> Result<(), EimError> {
         // Kill the current process
         if let Some(mut child) = self.child.take() {
