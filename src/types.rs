@@ -102,3 +102,21 @@ pub struct BoundingBox {
     /// Y-coordinate of the top-left corner
     pub y: u32,
 }
+
+/// Represents the type of sensor used for data collection.
+///
+/// This enum defines the supported sensor types for Edge Impulse models,
+/// allowing the system to properly handle different types of input data.
+#[derive(Debug, Clone, Copy)]
+pub enum SensorType {
+    /// Camera sensor for image/video input
+    Camera,
+    /// Microphone sensor for audio input
+    Microphone,
+    /// Accelerometer sensor for motion data
+    Accelerometer,
+    /// Positional sensor for location/orientation data
+    Positional,
+    /// Other sensor types not covered by specific variants
+    Other,
+}

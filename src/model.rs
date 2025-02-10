@@ -155,7 +155,7 @@ impl EimModel {
 
         let socket = Self::connect_with_retry(socket_path, Duration::from_secs(5))?;
 
-        Ok(Self {
+        let mut model = Self {
             path: path.to_path_buf(),
             socket_path: socket_path.to_path_buf(),
             socket,
@@ -164,7 +164,12 @@ impl EimModel {
             model_info: None,
             message_id: AtomicU32::new(1),
             child: None,
-        })
+        };
+
+        // Initialize the model by sending hello message
+        model.send_hello()?;
+
+        Ok(model)
     }
 
     /// Attempts to connect to the Unix socket with a retry mechanism
