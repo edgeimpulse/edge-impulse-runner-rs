@@ -17,6 +17,75 @@ A Rust library for running Edge Impulse Linux models (EIM). This crate provides 
 - Continuous classification mode support
 - Debug output option
 
+## Communication Protocol
+
+The Edge Impulse Runner uses a Unix socket-based IPC mechanism to communicate with the model process. The protocol is JSON-based and follows a request-response pattern.
+
+### Protocol Messages
+
+#### 1. Initialization
+When a new model is created, the following sequence occurs:
+
+```json
+HelloMessage (Runner -> Model):
+{
+    "hello": 1,
+    "id": 1
+}
+```
+
+```json
+ModelInfo Response (Model -> Runner):
+{
+    "success": true,
+    "id": 1,
+    "model_parameters": {
+        "sensor": 1,
+        "input_features_count": 1024,
+        "frequency": 16000,
+        "labels": ["class1", "class2"],
+        "threshold": 0.5
+    }
+}
+```
+
+#### 2. Classification
+For each inference request:
+
+```json
+ClassifyMessage (Runner -> Model):
+{
+    "classify": [0.1, 0.2, 0.3],
+    "id": 2
+}
+```
+
+```json
+InferenceResponse (Model -> Runner):
+{
+    "success": true,
+    "id": 2,
+    "result": {
+        "classification": {
+            "class1": 0.8,
+            "class2": 0.2
+        }
+    }
+}
+```
+
+#### 3. Error Handling
+When errors occur:
+
+```json
+ErrorResponse (Model -> Runner):
+{
+    "success": false,
+    "error": "Invalid input features count",
+    "id": 2
+}
+```
+
 ## Installation
 Add this to your `Cargo.toml`:
 ```[dependencies]
