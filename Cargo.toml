@@ -15,3 +15,4 @@ tokio = { version = "1.0", features = ["full"] }
 [dev-dependencies]
 clap = { version = "4.4", features = ["derive"] }
 hound = "3.5"
+tempfile = "3.10.0"

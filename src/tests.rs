@@ -6,6 +6,7 @@ mod tests {
     use std::io::Write;
     use std::path::Path;
     use std::process::Command;
+    use tempfile;
 
     /// Creates a mock EIM executable for testing
     ///
@@ -96,12 +97,18 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'echo "{\"success\":true,\"error\":nu
 
     #[test]
     fn test_connection_timeout() {
-        // Create an executable file that exits immediately
-        let temp_file = std::env::temp_dir().join("dummy.eim");
-        let script = "#!/bin/sh\nexit 0\n";
+        // Create a temporary directory
+        let temp_dir = tempfile::tempdir().unwrap();
+        let socket_dir = temp_dir.path().join("nonexistent");
+        let temp_file = socket_dir.join("dummy.eim");
+
+        // Create the directory structure
+        std::fs::create_dir_all(socket_dir).unwrap();
+
+        // Create the executable
+        let script = "#!/bin/sh\nsleep 10\n";  // Sleep long enough for timeout
         std::fs::write(&temp_file, script).unwrap();
 
-        // Make it executable
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -112,15 +119,8 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'echo "{\"success\":true,\"error\":nu
 
         // Test that we get the expected timeout error
         let result = EimModel::new(&temp_file);
-        assert!(
-            matches!(result,
-                Err(EimError::SocketError(ref msg)) if msg.contains("Timeout waiting for socket")
-            ),
-            "Expected timeout error, got {:?}",
-            result
-        );
-
-        // Clean up the test file
-        std::fs::remove_file(temp_file).unwrap();
+        assert!(matches!(result,
+            Err(EimError::SocketError(ref msg)) if msg.contains("Timeout waiting for socket")
+        ), "Expected timeout error, got {:?}", result);
     }
 }
