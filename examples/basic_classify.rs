@@ -48,8 +48,11 @@ struct Args {
 fn parse_features(s: &str) -> Result<Vec<f32>, String> {
     s.trim_matches(|c| c == '\'' || c == '"')
         .split(',')
-        .map(|s| s.trim().parse::<f32>()
-            .map_err(|e| format!("Invalid feature value '{}': {}", s, e)))
+        .map(|s| {
+            s.trim()
+                .parse::<f32>()
+                .map_err(|e| format!("Invalid feature value '{}': {}", s, e))
+        })
         .collect()
 }
 
@@ -89,8 +92,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         InferenceResult::ObjectDetection { bounding_boxes, .. } => {
             // For object detection models, print detected objects with locations
             for bbox in bounding_boxes {
-                println!("Found {} at ({}, {}) with confidence {:.2}%",
-                    bbox.label, bbox.x, bbox.y, bbox.value * 100.0);
+                println!(
+                    "Found {} at ({}, {}) with confidence {:.2}%",
+                    bbox.label,
+                    bbox.x,
+                    bbox.y,
+                    bbox.value * 100.0
+                );
             }
         }
     }

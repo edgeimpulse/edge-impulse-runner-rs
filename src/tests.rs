@@ -1,11 +1,11 @@
 #[cfg(test)]
 mod tests {
+    use crate::{EimError, EimModel};
     use std::env;
     use std::fs::File;
     use std::io::Write;
     use std::path::Path;
     use std::process::Command;
-    use crate::{EimModel, EimError};
 
     /// Creates a mock EIM executable for testing
     ///
@@ -14,7 +14,8 @@ mod tests {
     /// 2. Creating a Unix socket at that path using socat
     /// 3. Responding to the hello message with a valid JSON response
     fn create_mock_eim() -> std::path::PathBuf {
-        let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("Failed to get manifest directory");
+        let manifest_dir =
+            env::var("CARGO_MANIFEST_DIR").expect("Failed to get manifest directory");
         let mock_path = Path::new(&manifest_dir).join("mock_eim.sh");
 
         // Create a shell script that simulates an EIM model
@@ -83,7 +84,11 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'echo "{\"success\":true,\"error\":nu
 
         // Test the connection
         let result = EimModel::new(&mock_path_with_eim);
-        assert!(result.is_ok(), "Failed to create EIM model: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to create EIM model: {:?}",
+            result.err()
+        );
 
         // Clean up the test file
         std::fs::remove_file(&mock_path_with_eim).unwrap();
@@ -107,9 +112,13 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'echo "{\"success\":true,\"error\":nu
 
         // Test that we get the expected timeout error
         let result = EimModel::new(&temp_file);
-        assert!(matches!(result,
-            Err(EimError::SocketError(ref msg)) if msg.contains("Timeout waiting for socket")
-        ), "Expected timeout error, got {:?}", result);
+        assert!(
+            matches!(result,
+                Err(EimError::SocketError(ref msg)) if msg.contains("Timeout waiting for socket")
+            ),
+            "Expected timeout error, got {:?}",
+            result
+        );
 
         // Clean up the test file
         std::fs::remove_file(temp_file).unwrap();

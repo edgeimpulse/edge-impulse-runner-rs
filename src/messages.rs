@@ -1,7 +1,7 @@
+use crate::types::ModelParameters;
+use crate::types::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::types::*;
-use crate::types::ModelParameters;
 
 #[derive(Serialize, Debug)]
 pub struct HelloMessage {

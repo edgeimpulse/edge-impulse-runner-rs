@@ -1,14 +1,14 @@
-use std::io::{BufReader, Write, BufRead};
+use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
-use std::time::{Duration, Instant};
 use std::process::{Child, Command};
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::{Duration, Instant};
 
 use crate::error::EimError;
 use crate::messages::{
-    HelloMessage, ModelInfo, ErrorResponse, ClassifyMessage,
-    ConfigMessage, ConfigOptions, ConfigResponse, InferenceResponse
+    ClassifyMessage, ConfigMessage, ConfigOptions, ConfigResponse, ErrorResponse, HelloMessage,
+    InferenceResponse, ModelInfo,
 };
 use crate::types::ModelParameters;
 
@@ -87,8 +87,9 @@ impl EimModel {
 
         // Remove any existing socket file to avoid "Address already in use" errors
         if socket_path.exists() {
-            std::fs::remove_file(&socket_path)
-                .map_err(|e| EimError::SocketError(format!("Failed to remove existing socket: {}", e)))?;
+            std::fs::remove_file(&socket_path).map_err(|e| {
+                EimError::SocketError(format!("Failed to remove existing socket: {}", e))
+            })?;
         }
 
         // Start the EIM process, passing the socket path as an argument
@@ -133,9 +134,13 @@ impl EimModel {
                 Err(e) => {
                     // NotFound and ConnectionRefused are expected errors while the socket
                     // is being created, so we retry in these cases
-                    if e.kind() != std::io::ErrorKind::NotFound &&
-                       e.kind() != std::io::ErrorKind::ConnectionRefused {
-                        return Err(EimError::SocketError(format!("Failed to connect to socket: {}", e)));
+                    if e.kind() != std::io::ErrorKind::NotFound
+                        && e.kind() != std::io::ErrorKind::ConnectionRefused
+                    {
+                        return Err(EimError::SocketError(format!(
+                            "Failed to connect to socket: {}",
+                            e
+                        )));
                     }
                 }
             }
@@ -169,8 +174,8 @@ impl EimModel {
 
         let reader = BufReader::new(&self.socket);
         for line in reader.lines() {
-            let line = line.map_err(|e|
-                EimError::SocketError(format!("Failed to read response: {}", e)))?;
+            let line =
+                line.map_err(|e| EimError::SocketError(format!("Failed to read response: {}", e)))?;
 
             if self.debug {
                 println!("<- {}", line);
@@ -178,7 +183,9 @@ impl EimModel {
 
             if let Ok(info) = serde_json::from_str::<ModelInfo>(&line) {
                 if !info.success {
-                    return Err(EimError::ExecutionError("Model initialization failed".to_string()));
+                    return Err(EimError::ExecutionError(
+                        "Model initialization failed".to_string(),
+                    ));
                 }
                 self.model_info = Some(info);
                 return Ok(());
@@ -187,13 +194,15 @@ impl EimModel {
             if let Ok(error) = serde_json::from_str::<ErrorResponse>(&line) {
                 if !error.success {
                     return Err(EimError::ExecutionError(
-                        error.error.unwrap_or_else(|| "Unknown error".to_string())
+                        error.error.unwrap_or_else(|| "Unknown error".to_string()),
                     ));
                 }
             }
         }
 
-        Err(EimError::SocketError("No valid response received".to_string()))
+        Err(EimError::SocketError(
+            "No valid response received".to_string(),
+        ))
     }
 
     /// Get the path to the EIM file
@@ -208,20 +217,26 @@ impl EimModel {
 
     /// Get the sensor type for this model
     pub fn sensor_type(&self) -> Result<SensorType, EimError> {
-        self.model_info.as_ref()
+        self.model_info
+            .as_ref()
             .map(|info| SensorType::from(info.model_parameters.sensor))
             .ok_or_else(|| EimError::ExecutionError("Model info not available".to_string()))
     }
 
     /// Get the model parameters
     pub fn parameters(&self) -> Result<&ModelParameters, EimError> {
-        self.model_info.as_ref()
+        self.model_info
+            .as_ref()
             .map(|info| &info.model_parameters)
             .ok_or_else(|| EimError::ExecutionError("Model info not available".to_string()))
     }
 
     /// Classify raw features
-    pub fn classify(&mut self, features: Vec<f32>, debug: Option<bool>) -> Result<InferenceResponse, EimError> {
+    pub fn classify(
+        &mut self,
+        features: Vec<f32>,
+        debug: Option<bool>,
+    ) -> Result<InferenceResponse, EimError> {
         // Send the classification request
         let msg = ClassifyMessage {
             classify: features,
@@ -234,8 +249,9 @@ impl EimModel {
             println!("-> {}", msg);
         }
 
-        writeln!(self.socket, "{}", msg)
-            .map_err(|e| EimError::SocketError(format!("Failed to send classify message: {}", e)))?;
+        writeln!(self.socket, "{}", msg).map_err(|e| {
+            EimError::SocketError(format!("Failed to send classify message: {}", e))
+        })?;
 
         // Read responses until we get a classification result
         let mut reader = BufReader::new(&self.socket);
@@ -255,11 +271,16 @@ impl EimModel {
             buffer.clear();
         }
 
-        Err(EimError::ExecutionError("No valid response received".to_string()))
+        Err(EimError::ExecutionError(
+            "No valid response received".to_string(),
+        ))
     }
 
     /// Classify continuous data (for models that support it)
-    pub fn classify_continuous(&mut self, features: Vec<f32>) -> Result<InferenceResponse, EimError> {
+    pub fn classify_continuous(
+        &mut self,
+        features: Vec<f32>,
+    ) -> Result<InferenceResponse, EimError> {
         self.classify(features, None)
     }
 
@@ -282,8 +303,8 @@ impl EimModel {
 
         let reader = BufReader::new(&self.socket);
         for line in reader.lines() {
-            let line = line.map_err(|e|
-                EimError::SocketError(format!("Failed to read response: {}", e)))?;
+            let line =
+                line.map_err(|e| EimError::SocketError(format!("Failed to read response: {}", e)))?;
 
             if self.debug {
                 println!("<- {}", line);
@@ -291,7 +312,9 @@ impl EimModel {
 
             if let Ok(response) = serde_json::from_str::<ConfigResponse>(&line) {
                 if !response.success {
-                    return Err(EimError::ExecutionError("Failed to set configuration".to_string()));
+                    return Err(EimError::ExecutionError(
+                        "Failed to set configuration".to_string(),
+                    ));
                 }
                 return Ok(());
             }
@@ -299,7 +322,7 @@ impl EimModel {
             if let Ok(error) = serde_json::from_str::<ErrorResponse>(&line) {
                 if !error.success {
                     return Err(EimError::ExecutionError(
-                        error.error.unwrap_or_else(|| "Unknown error".to_string())
+                        error.error.unwrap_or_else(|| "Unknown error".to_string()),
                     ));
                 }
             }
@@ -315,8 +338,9 @@ impl EimModel {
 
         // Remove any existing socket file to avoid "Address already in use" errors
         if socket_path.exists() {
-            std::fs::remove_file(&socket_path)
-                .map_err(|e| EimError::SocketError(format!("Failed to remove existing socket: {}", e)))?;
+            std::fs::remove_file(&socket_path).map_err(|e| {
+                EimError::SocketError(format!("Failed to remove existing socket: {}", e))
+            })?;
         }
 
         // Start the EIM process, passing the socket path as an argument
@@ -335,10 +359,12 @@ impl EimModel {
     fn restart(&mut self) -> Result<(), EimError> {
         // Kill the current process
         if let Some(mut child) = self.child.take() {
-            child.kill()
+            child
+                .kill()
                 .map_err(|e| EimError::ExecutionError(format!("Failed to kill process: {}", e)))?;
-            child.wait()
-                .map_err(|e| EimError::ExecutionError(format!("Failed to wait for process: {}", e)))?;
+            child.wait().map_err(|e| {
+                EimError::ExecutionError(format!("Failed to wait for process: {}", e))
+            })?;
         }
 
         // Start a new process
