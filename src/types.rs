@@ -1,9 +1,9 @@
 use serde::Deserialize;
 
-#[derive(Deserialize, Debug)]
+#[derive(Debug, Deserialize)]
 pub struct ModelParameters {
     pub axis_count: u32,
-    pub frequency: f32,
+    pub frequency: u32,
     pub has_anomaly: u32,
     pub image_channel_count: u32,
     pub image_input_frames: u32,
@@ -12,16 +12,14 @@ pub struct ModelParameters {
     pub image_resize_mode: String,
     pub inferencing_engine: u32,
     pub input_features_count: u32,
-    pub interval_ms: u32,
+    pub interval_ms: f32,
     pub label_count: u32,
     pub labels: Vec<String>,
     pub model_type: String,
     pub sensor: u32,
-    #[serde(default)]
-    pub slice_size: Option<u32>,
-    #[serde(default)]
-    pub use_continuous_mode: bool,
+    pub slice_size: u32,
     pub threshold: f32,
+    pub use_continuous_mode: bool,
 }
 
 #[derive(Deserialize, Debug)]

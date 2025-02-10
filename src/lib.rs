@@ -1,12 +1,12 @@
 mod error;
 mod messages;
+pub mod types;
 mod model;
-mod types;
 
 pub use error::EimError;
-pub use messages::{HelloMessage, ClassifyMessage, ModelInfo, InferenceResponse, InferenceResult};
 pub use model::EimModel;
-pub use types::{ModelParameters, ProjectInfo, TimingInfo, BoundingBox};
+pub use types::ModelParameters;
+pub use messages::{InferenceResult, InferenceResponse};
 
 #[cfg(test)]
 mod tests;

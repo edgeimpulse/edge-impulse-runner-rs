@@ -127,6 +127,29 @@ The features array format depends on your model:
 - For accelerometer: X, Y, Z values
 - For other sensors: Check your model's specifications
 
+### Audio Classification
+
+The repository includes an example that demonstrates audio classification using Edge Impulse models. The example supports:
+
+- Various WAV file formats (8/16/24/32-bit, integer/float)
+- Both mono and stereo inputs (stereo is automatically converted to mono)
+- Sample rate validation
+- Automatic padding/truncating to match model requirements
+
+To run the audio classification example:
+
+```bash
+cargo run --example audio_classify -- --model <path_to_model.eim> --audio <path_to_audio.wav> [--debug]
+```
+
+Example output:
+```
+Reading audio file: input.wav
+Model expects 16000 samples at 16000Hz
+Using slice size of 16000 samples
+Classification result: ...
+```
+
 ## Development
 ### Running Tests
 ```cargo test```
