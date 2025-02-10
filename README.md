@@ -99,31 +99,36 @@ cargo run --example run_model -- --model path/to/model.eim
 cargo run --example run_model -- --model path/to/model.eim --debug
 ```
 
-## Model Types
-
-The crate supports different types of Edge Impulse models:
-
-- Classification models: Return probabilities for each class
-- Object detection models: Return bounding boxes with labels and confidence scores
-- Anomaly detection: Return anomaly scores and optionally visual anomaly grids
-
-## Sensor Types
-
-Models can be trained for different sensor types:
-
-- Camera: Image classification and object detection
-- Microphone: Audio classification
-- Accelerometer: Motion classification
-- Positional: Position-based classification
-
-
 ### Error Handling
-The crate provides detailed error types for various failure scenarios:
-* `FileError`: Issues with accessing the EIM file
-* `InvalidPath`: Invalid file path or extension
-* `ExecutionError`: Problems running the EIM model
-* `SocketError`: Unix socket communication issues
-* `JsonError`: JSON serialization/deserialization errors
+The crate provides detailed error types through `EimError`:
+
+- `FileError`: Issues with accessing the EIM file
+- `InvalidPath`: Invalid file path or extension
+- `ExecutionError`: Problems running the EIM model
+- `SocketError`: Unix socket communication issues
+- `JsonError`: JSON serialization/deserialization errors
+- `InvalidInput`: Invalid input features or parameters
+- `InvalidOperation`: Operation not supported by the model (e.g., continuous mode)
+
+Example error handling:
+```rust
+use edge_impulse_runner::{EimModel, EimError};
+
+fn main() {
+    match EimModel::new("path/to/model.eim") {
+        Ok(mut model) => {
+            match model.classify(vec![0.1, 0.2, 0.3], None) {
+                Ok(result) => println!("Classification successful"),
+                Err(EimError::InvalidInput(msg)) => println!("Invalid input: {}", msg),
+                Err(EimError::ExecutionError(msg)) => println!("Model execution failed: {}", msg),
+                Err(e) => println!("Other error: {}", e),
+            }
+        },
+        Err(EimError::FileError(e)) => println!("File error: {}", e),
+        Err(e) => println!("Error creating model: {}", e),
+    }
+}
+```
 
 ### Development
 #### Running Tests
