@@ -6,6 +6,29 @@ use std::process::{Child};
 
 use crate::error::EimError;
 use crate::messages::*;
+use crate::types::ModelParameters;
+
+/// Supported sensor types for Edge Impulse models
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SensorType {
+    Unknown,
+    Microphone,
+    Accelerometer,
+    Camera,
+    Positional,
+}
+
+impl From<u32> for SensorType {
+    fn from(value: u32) -> Self {
+        match value {
+            1 => SensorType::Microphone,
+            2 => SensorType::Accelerometer,
+            3 => SensorType::Camera,
+            4 => SensorType::Positional,
+            _ => SensorType::Unknown,
+        }
+    }
+}
 
 pub struct EimModel {
     path: std::path::PathBuf,
@@ -13,6 +36,7 @@ pub struct EimModel {
     stream: UnixStream,
     debug: bool,
     _process: Child, // Keep the process alive while the model exists
+    model_info: Option<ModelInfo>,
 }
 
 impl EimModel {
@@ -73,6 +97,7 @@ impl EimModel {
             stream,
             debug,
             _process: process,
+            model_info: None,
         };
 
         // Send initial hello message to establish communication
@@ -144,6 +169,7 @@ impl EimModel {
                 if !info.success {
                     return Err(EimError::ExecutionError("Model initialization failed".to_string()));
                 }
+                self.model_info = Some(info);
                 return Ok(());
             }
 
@@ -169,7 +195,46 @@ impl EimModel {
         &self.socket_path
     }
 
-    pub fn get_model_info(&mut self) -> Result<ModelInfo, EimError> {
+    /// Get the sensor type for this model
+    pub fn sensor_type(&self) -> Result<SensorType, EimError> {
+        self.model_info.as_ref()
+            .map(|info| SensorType::from(info.model_parameters.sensor))
+            .ok_or_else(|| EimError::ExecutionError("Model info not available".to_string()))
+    }
+
+    /// Get the model parameters
+    pub fn parameters(&self) -> Result<&ModelParameters, EimError> {
+        self.model_info.as_ref()
+            .map(|info| &info.model_parameters)
+            .ok_or_else(|| EimError::ExecutionError("Model info not available".to_string()))
+    }
+
+    /// Classify raw features
+    pub fn classify(&mut self, features: Vec<f32>, debug: Option<bool>) -> Result<InferenceResponse, EimError> {
+        // Validate input features match model requirements
+        let params = self.parameters()?;
+        if features.len() != params.input_features_count as usize {
+            return Err(EimError::InvalidInput(format!(
+                "Expected {} features but got {}",
+                params.input_features_count,
+                features.len()
+            )));
+        }
+
+        let msg = ClassifyMessage {
+            classify: features,
+            id: 2, // TODO: Implement message ID counter
+            debug,
+        };
+
+        let msg = serde_json::to_string(&msg)?;
+        if self.debug {
+            println!("-> {}", msg);
+        }
+
+        writeln!(self.stream, "{}", msg)
+            .map_err(|e| EimError::SocketError(format!("Failed to send classify message: {}", e)))?;
+
         let reader = BufReader::new(&self.stream);
         for line in reader.lines() {
             let line = line.map_err(|e|
@@ -179,9 +244,12 @@ impl EimModel {
                 println!("<- {}", line);
             }
 
-            // First try to parse as ModelInfo
-            if let Ok(info) = serde_json::from_str::<ModelInfo>(&line) {
-                return Ok(info);
+            // First try to parse as InferenceResponse
+            if let Ok(response) = serde_json::from_str::<InferenceResponse>(&line) {
+                if !response.success {
+                    return Err(EimError::ExecutionError("Inference failed".to_string()));
+                }
+                return Ok(response);
             }
 
             // If that fails, check if it's an error response
@@ -195,14 +263,35 @@ impl EimModel {
             // Skip other message types
         }
 
-        Err(EimError::SocketError("No model info received".to_string()))
+        Err(EimError::SocketError("No inference response received".to_string()))
     }
 
-    pub fn classify(&mut self, features: Vec<f32>, debug: Option<bool>) -> Result<InferenceResponse, EimError> {
+    /// Classify continuous data (for models that support it)
+    pub fn classify_continuous(&mut self, features: Vec<f32>) -> Result<InferenceResponse, EimError> {
+        let params = self.parameters()?;
+
+        // Validate model supports continuous mode
+        if !params.use_continuous_mode {
+            return Err(EimError::InvalidOperation(
+                "Model does not support continuous mode".to_string()
+            ));
+        }
+
+        // Validate slice size if specified
+        if let Some(slice_size) = params.slice_size {
+            if features.len() != slice_size as usize {
+                return Err(EimError::InvalidInput(format!(
+                    "Expected slice size of {} but got {}",
+                    slice_size,
+                    features.len()
+                )));
+            }
+        }
+
         let msg = ClassifyMessage {
             classify: features,
             id: 2, // TODO: Implement message ID counter
-            debug,
+            debug: None,
         };
 
         let msg = serde_json::to_string(&msg)?;

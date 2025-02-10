@@ -17,7 +17,9 @@ pub struct ModelParameters {
     pub labels: Vec<String>,
     pub model_type: String,
     pub sensor: u32,
-    pub slice_size: u32,
+    #[serde(default)]
+    pub slice_size: Option<u32>,
+    #[serde(default)]
     pub use_continuous_mode: bool,
     pub threshold: f32,
 }
