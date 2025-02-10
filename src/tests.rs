@@ -106,7 +106,7 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'echo "{\"success\":true,\"error\":nu
         std::fs::create_dir_all(socket_dir).unwrap();
 
         // Create the executable
-        let script = "#!/bin/sh\nsleep 10\n";  // Sleep long enough for timeout
+        let script = "#!/bin/sh\nsleep 10\n"; // Sleep long enough for timeout
         std::fs::write(&temp_file, script).unwrap();
 
         #[cfg(unix)]
@@ -119,8 +119,12 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'echo "{\"success\":true,\"error\":nu
 
         // Test that we get the expected timeout error
         let result = EimModel::new(&temp_file);
-        assert!(matches!(result,
-            Err(EimError::SocketError(ref msg)) if msg.contains("Timeout waiting for socket")
-        ), "Expected timeout error, got {:?}", result);
+        assert!(
+            matches!(result,
+                Err(EimError::SocketError(ref msg)) if msg.contains("Timeout waiting for socket")
+            ),
+            "Expected timeout error, got {:?}",
+            result
+        );
     }
 }
