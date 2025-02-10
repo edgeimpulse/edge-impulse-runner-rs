@@ -66,44 +66,42 @@ impl EimModel {
         Self::new_with_debug(path, false)
     }
 
+    /// Create a new EimModel instance with a specific socket path
+    pub fn new_with_socket<P: AsRef<Path>, S: AsRef<Path>>(path: P, socket_path: S) -> Result<Self, EimError> {
+        Self::new_with_socket_and_debug(path, socket_path, false)
+    }
+
     /// Create a new EimModel instance with debug output enabled
     pub fn new_with_debug<P: AsRef<Path>>(path: P, debug: bool) -> Result<Self, EimError> {
+        let socket_path = std::env::temp_dir().join("eim_socket");
+        Self::new_with_socket_and_debug(path, &socket_path, debug)
+    }
+
+    /// Create a new EimModel instance with debug output enabled and a specific socket path
+    pub fn new_with_socket_and_debug<P: AsRef<Path>, S: AsRef<Path>>(
+        path: P,
+        socket_path: S,
+        debug: bool
+    ) -> Result<Self, EimError> {
         let path = path.as_ref();
+        let socket_path = socket_path.as_ref();
 
-        // Verify the file exists and has .eim extension
-        if !path.exists() {
-            return Err(EimError::FileError(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "EIM file not found",
-            )));
-        }
-
-        if path.extension().and_then(|ext| ext.to_str()) != Some("eim") {
+        // Validate file extension
+        if path.extension().and_then(|s| s.to_str()) != Some("eim") {
             return Err(EimError::InvalidPath);
         }
 
-        // Create a temporary socket path in the system's temp directory
-        let socket_path = std::env::temp_dir().join("eim_socket");
-
-        // Remove any existing socket file to avoid "Address already in use" errors
-        if socket_path.exists() {
-            std::fs::remove_file(&socket_path).map_err(|e| {
-                EimError::SocketError(format!("Failed to remove existing socket: {}", e))
-            })?;
-        }
-
-        // Start the EIM process, passing the socket path as an argument
+        // Start the process
         let process = std::process::Command::new(path)
-            .arg(&socket_path)
+            .arg(socket_path)
             .spawn()
             .map_err(|e| EimError::ExecutionError(e.to_string()))?;
 
-        // Attempt to connect to the socket with retries and timeout
-        let socket = Self::connect_with_retry(&socket_path, Duration::from_secs(5))?;
+        let socket = Self::connect_with_retry(socket_path, Duration::from_secs(5))?;
 
         Ok(Self {
             path: path.to_path_buf(),
-            socket_path,
+            socket_path: socket_path.to_path_buf(),
             socket,
             debug,
             _process: process,

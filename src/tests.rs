@@ -43,11 +43,15 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'echo "{\"success\":true,\"error\":nu
 
     #[test]
     fn test_missing_file_error() {
-        // Verify that attempting to load a non-existent file returns FileError
-        let result = EimModel::new("unknown.eim");
+        // Create a temporary directory for the socket
+        let temp_dir = tempfile::tempdir().unwrap();
+        let socket_path = temp_dir.path().join("test.socket");
+
+        // Test with a non-existent file
+        let result = EimModel::new_with_socket("unknown.eim", &socket_path);
         match result {
-            Err(EimError::FileError(_)) => (),
-            _ => panic!("Expected FileError when file doesn't exist"),
+            Err(EimError::ExecutionError(msg)) if msg.contains("No such file") => (),
+            other => panic!("Expected ExecutionError for missing file, got {:?}", other),
         }
     }
 
@@ -99,32 +103,25 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'echo "{\"success\":true,\"error\":nu
     fn test_connection_timeout() {
         // Create a temporary directory
         let temp_dir = tempfile::tempdir().unwrap();
-        let socket_dir = temp_dir.path().join("nonexistent");
-        let temp_file = socket_dir.join("dummy.eim");
-
-        // Create the directory structure
-        std::fs::create_dir_all(socket_dir).unwrap();
+        let socket_path = temp_dir.path().join("test.socket");
+        let model_path = temp_dir.path().join("dummy.eim");
 
         // Create the executable
-        let script = "#!/bin/sh\nsleep 10\n"; // Sleep long enough for timeout
-        std::fs::write(&temp_file, script).unwrap();
+        let script = "#!/bin/sh\nsleep 10\n";  // Sleep long enough for timeout
+        std::fs::write(&model_path, script).unwrap();
 
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perms = std::fs::metadata(&temp_file).unwrap().permissions();
+            let mut perms = std::fs::metadata(&model_path).unwrap().permissions();
             perms.set_mode(0o755);
-            std::fs::set_permissions(&temp_file, perms).unwrap();
+            std::fs::set_permissions(&model_path, perms).unwrap();
         }
 
         // Test that we get the expected timeout error
-        let result = EimModel::new(&temp_file);
-        assert!(
-            matches!(result,
-                Err(EimError::SocketError(ref msg)) if msg.contains("Timeout waiting for socket")
-            ),
-            "Expected timeout error, got {:?}",
-            result
-        );
+        let result = EimModel::new_with_socket(&model_path, &socket_path);
+        assert!(matches!(result,
+            Err(EimError::SocketError(ref msg)) if msg.contains("Timeout waiting for socket")
+        ), "Expected timeout error, got {:?}", result);
     }
 }
