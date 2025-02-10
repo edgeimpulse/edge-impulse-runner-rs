@@ -67,7 +67,10 @@ impl EimModel {
     }
 
     /// Create a new EimModel instance with a specific socket path
-    pub fn new_with_socket<P: AsRef<Path>, S: AsRef<Path>>(path: P, socket_path: S) -> Result<Self, EimError> {
+    pub fn new_with_socket<P: AsRef<Path>, S: AsRef<Path>>(
+        path: P,
+        socket_path: S,
+    ) -> Result<Self, EimError> {
         Self::new_with_socket_and_debug(path, socket_path, false)
     }
 
@@ -81,7 +84,7 @@ impl EimModel {
     pub fn new_with_socket_and_debug<P: AsRef<Path>, S: AsRef<Path>>(
         path: P,
         socket_path: S,
-        debug: bool
+        debug: bool,
     ) -> Result<Self, EimError> {
         let path = path.as_ref();
         let socket_path = socket_path.as_ref();
