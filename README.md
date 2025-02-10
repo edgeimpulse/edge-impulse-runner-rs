@@ -89,15 +89,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### Example Application
-The crate includes an example application that demonstrates how to load and use an EIM model. To run it:
-```
-# Basic usage
-cargo run --example run_model -- --model path/to/model.eim
+## Examples
 
-# With debug output
-cargo run --example run_model -- --model path/to/model.eim --debug
+### Basic Classification
+The simplest example allows you to run inference by providing the features array via command line:
+
+```bash
+# Format: comma-separated feature values
+cargo run --example basic_classify -- --model path/to/model.eim --features "0.1,0.2,0.3"
+
+# With debug output enabled
+cargo run --example basic_classify -- --model path/to/model.eim --features "0.1,0.2,0.3" --debug
 ```
+
+```bash
+Usage: basic_classify [OPTIONS] --model <MODEL> --features <FEATURES>
+
+Options:
+  -m, --model <MODEL>        Path to the .eim model file
+  -f, --features <FEATURES>  Features array as comma-separated values (e.g., "0.1,0.2,0.3")
+  -d, --debug                Enable debug output
+  -h, --help                 Print help
+  -V, --version              Print version
+  ```
+
+This example demonstrates:
+- Loading a model from a file
+- Parsing features from command line arguments
+- Running inference
+- Handling different types of results (classification and object detection)
+- Optional debug output
+
+The features array format depends on your model:
+- For audio models: Raw audio samples
+- For image models: RGB pixel values
+- For accelerometer: X, Y, Z values
+- For other sensors: Check your model's specifications
 
 ### Error Handling
 The crate provides detailed error types through `EimError`:
