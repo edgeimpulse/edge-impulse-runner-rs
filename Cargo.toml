@@ -1,0 +1,15 @@
+[package]
+name = "edge_impulse_runner"
+version = "0.1.0"
+edition = "2021"
+description = "A Rust library for running Edge Impulse Linux models"
+license = "MIT"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+
+[dev-dependencies]
+clap = { version = "4.4", features = ["derive"] }
