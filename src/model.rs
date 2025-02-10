@@ -34,10 +34,12 @@ impl From<u32> for SensorType {
     }
 }
 
+/// Edge Impulse Model runner
+#[derive(Debug)]
 pub struct EimModel {
     path: std::path::PathBuf,
     socket_path: std::path::PathBuf,
-    stream: UnixStream,
+    socket: UnixStream,
     debug: bool,
     _process: Child, // Keep the process alive while the model exists
     model_info: Option<ModelInfo>,
@@ -96,23 +98,18 @@ impl EimModel {
             .map_err(|e| EimError::ExecutionError(e.to_string()))?;
 
         // Attempt to connect to the socket with retries and timeout
-        let stream = Self::connect_with_retry(&socket_path, Duration::from_secs(5))?;
+        let socket = Self::connect_with_retry(&socket_path, Duration::from_secs(5))?;
 
-        let mut model = Self {
+        Ok(Self {
             path: path.to_path_buf(),
             socket_path,
-            stream,
+            socket,
             debug,
             _process: process,
             model_info: None,
             message_id: AtomicU32::new(1),
             child: None,
-        };
-
-        // Send initial hello message to establish communication
-        model.send_hello()?;
-
-        Ok(model)
+        })
     }
 
     /// Attempts to connect to the Unix socket with a retry mechanism
@@ -167,10 +164,10 @@ impl EimModel {
             println!("-> {}", msg);
         }
 
-        writeln!(self.stream, "{}", msg)
+        writeln!(self.socket, "{}", msg)
             .map_err(|e| EimError::SocketError(format!("Failed to send hello message: {}", e)))?;
 
-        let reader = BufReader::new(&self.stream);
+        let reader = BufReader::new(&self.socket);
         for line in reader.lines() {
             let line = line.map_err(|e|
                 EimError::SocketError(format!("Failed to read response: {}", e)))?;
@@ -237,11 +234,11 @@ impl EimModel {
             println!("-> {}", msg);
         }
 
-        writeln!(self.stream, "{}", msg)
+        writeln!(self.socket, "{}", msg)
             .map_err(|e| EimError::SocketError(format!("Failed to send classify message: {}", e)))?;
 
         // Read responses until we get a classification result
-        let mut reader = BufReader::new(&self.stream);
+        let mut reader = BufReader::new(&self.socket);
         let mut buffer = String::new();
 
         while reader.read_line(&mut buffer)? > 0 {
@@ -280,10 +277,10 @@ impl EimModel {
             println!("-> {}", msg);
         }
 
-        writeln!(self.stream, "{}", msg)
+        writeln!(self.socket, "{}", msg)
             .map_err(|e| EimError::SocketError(format!("Failed to send config message: {}", e)))?;
 
-        let reader = BufReader::new(&self.stream);
+        let reader = BufReader::new(&self.socket);
         for line in reader.lines() {
             let line = line.map_err(|e|
                 EimError::SocketError(format!("Failed to read response: {}", e)))?;
@@ -348,7 +345,7 @@ impl EimModel {
         let (child, stream) = Self::start_process(&self.path, self.debug)?;
 
         self.child = Some(child);
-        self.stream = stream;
+        self.socket = stream;
 
         // Send hello message to initialize
         self.send_hello()?;
