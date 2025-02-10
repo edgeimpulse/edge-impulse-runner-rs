@@ -12,13 +12,22 @@ use crate::messages::{
 };
 use crate::types::ModelParameters;
 
-/// Supported sensor types for Edge Impulse models
+/// Supported sensor types for Edge Impulse models.
+///
+/// These represent the different types of input data that an Edge Impulse model
+/// can process. Each sensor type corresponds to a specific data collection method
+/// and processing pipeline.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SensorType {
+    /// Represents an unknown or unsupported sensor type
     Unknown,
+    /// Audio input from microphone sensors
     Microphone,
+    /// Motion data from accelerometer sensors
     Accelerometer,
+    /// Visual input from camera sensors
     Camera,
+    /// Location or orientation data from positional sensors
     Positional,
 }
 
@@ -34,26 +43,61 @@ impl From<u32> for SensorType {
     }
 }
 
-/// Edge Impulse Model runner
+/// Edge Impulse Model runner for Linux-based systems.
+///
+/// This struct manages the lifecycle of an Edge Impulse model, handling:
+/// - Model process spawning and management
+/// - Unix socket communication
+/// - Model configuration
+/// - Inference requests and responses
+///
+/// # Communication Protocol
+///
+/// The model runner communicates with the Edge Impulse model process through a Unix
+/// socket. The protocol uses JSON messages for all communications, including:
+/// - Hello messages for initialization
+/// - Configuration messages
+/// - Classification requests
+/// - Inference responses
 #[derive(Debug)]
 pub struct EimModel {
+    /// Path to the Edge Impulse model file (.eim)
     path: std::path::PathBuf,
+    /// Path to the Unix socket used for IPC
     socket_path: std::path::PathBuf,
+    /// Active Unix socket connection to the model process
     socket: UnixStream,
+    /// Enable debug logging of socket communications
     debug: bool,
-    _process: Child, // Keep the process alive while the model exists
+    /// Handle to the model process (kept alive while model exists)
+    _process: Child,
+    /// Cached model information received during initialization
     model_info: Option<ModelInfo>,
+    /// Atomic counter for generating unique message IDs
     message_id: AtomicU32,
+    /// Optional child process handle for restart functionality
     #[allow(dead_code)]
     child: Option<Child>,
 }
 
 impl EimModel {
-    /// Create a new EimModel instance from a path to the .eim file
+    /// Creates a new EimModel instance from a path to the .eim file.
+    ///
+    /// This is the standard way to create a new model instance. The function will:
+    /// 1. Validate the file extension
+    /// 2. Spawn the model process
+    /// 3. Establish socket communication
+    /// 4. Initialize the model
     ///
     /// # Arguments
     ///
-    /// * `path` - Path to the .eim file
+    /// * `path` - Path to the .eim file. Must be a valid Edge Impulse model file.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Result<EimModel, EimError>` where:
+    /// - `Ok(EimModel)` - Successfully created and initialized model
+    /// - `Err(EimError)` - Failed to create model (invalid path, process spawn failure, etc.)
     ///
     /// # Examples
     ///
@@ -66,7 +110,16 @@ impl EimModel {
         Self::new_with_debug(path, false)
     }
 
-    /// Create a new EimModel instance with a specific socket path
+    /// Creates a new EimModel instance with a specific Unix socket path.
+    ///
+    /// Similar to `new()`, but allows specifying the socket path for communication.
+    /// This is useful when you need control over the socket location or when running
+    /// multiple models simultaneously.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path to the .eim file
+    /// * `socket_path` - Custom path where the Unix socket should be created
     pub fn new_with_socket<P: AsRef<Path>, S: AsRef<Path>>(
         path: P,
         socket_path: S,
@@ -232,7 +285,31 @@ impl EimModel {
             .ok_or_else(|| EimError::ExecutionError("Model info not available".to_string()))
     }
 
-    /// Classify raw features
+    /// Classifies input features using the model.
+    ///
+    /// Sends a classification request to the model and waits for the inference response.
+    /// This method is for one-shot classification of preprocessed feature data.
+    ///
+    /// # Arguments
+    ///
+    /// * `features` - Vector of preprocessed features matching the model's input requirements
+    /// * `debug` - Optional flag to enable debug output for this specific classification
+    ///
+    /// # Returns
+    ///
+    /// Returns `Result<InferenceResponse, EimError>` where:
+    /// - `Ok(InferenceResponse)` - Contains classification results and confidence scores
+    /// - `Err(EimError)` - Classification failed (communication error, invalid features, etc.)
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use edge_impulse_runner::EimModel;
+    /// # let mut model = EimModel::new("path/to/model.eim").unwrap();
+    /// let features = vec![0.1, 0.2, 0.3]; // Preprocessed input features
+    /// let result = model.classify(features, Some(true)).unwrap();
+    /// println!("Classification result: {:?}", result);
+    /// ```
     pub fn classify(
         &mut self,
         features: Vec<f32>,
