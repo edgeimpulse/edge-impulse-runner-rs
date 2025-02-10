@@ -26,16 +26,16 @@ The Edge Impulse Runner uses a Unix socket-based IPC mechanism to communicate wi
 #### 1. Initialization
 When a new model is created, the following sequence occurs:
 
+##### HelloMessage (Runner -> Model):
 ```json
-HelloMessage (Runner -> Model):
 {
     "hello": 1,
     "id": 1
 }
 ```
 
+##### ModelInfo Response (Model -> Runner):
 ```json
-ModelInfo Response (Model -> Runner):
 {
     "success": true,
     "id": 1,
@@ -52,16 +52,16 @@ ModelInfo Response (Model -> Runner):
 #### 2. Classification
 For each inference request:
 
+##### ClassifyMessage (Runner -> Model):
 ```json
-ClassifyMessage (Runner -> Model):
 {
     "classify": [0.1, 0.2, 0.3],
     "id": 2
 }
 ```
 
+##### InferenceResponse (Model -> Runner):
 ```json
-InferenceResponse (Model -> Runner):
 {
     "success": true,
     "id": 2,
@@ -77,8 +77,8 @@ InferenceResponse (Model -> Runner):
 #### 3. Error Handling
 When errors occur:
 
+##### ErrorResponse (Model -> Runner):
 ```json
-ErrorResponse (Model -> Runner):
 {
     "success": false,
     "error": "Invalid input features count",
