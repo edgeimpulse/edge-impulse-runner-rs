@@ -14,5 +14,10 @@ tokio = { version = "1.0", features = ["full"] }
 
 [dev-dependencies]
 clap = { version = "4.4", features = ["derive"] }
+cocoa = "0.26.0"
+gstreamer = "0.23.4"
+gstreamer-app = "0.23.4"
+gstreamer-video = "0.23.4"
 hound = "3.5"
+objc = "0.2.7"
 tempfile = "3.10.0"

@@ -543,15 +543,17 @@ impl EimModel {
         }
 
         let msg = ClassifyMessage {
-            classify: features,
+            classify: features.clone(),
             id: self.next_message_id(),
             debug,
         };
 
-        let msg = serde_json::to_string(&msg)?;
-        self.debug_message(&format!("Sending classification message: {}", msg));
+        // Limit feature debug output
+        let debug_features: Vec<f32> = features.iter().take(20).cloned().collect();
+        let msg_str = serde_json::to_string(&msg)?;
+        self.debug_message(&format!("Sending classification message with first 20 features: {:?}", debug_features));
 
-        writeln!(self.socket, "{}", msg).map_err(|e| {
+        writeln!(self.socket, "{}", msg_str).map_err(|e| {
             self.debug_message(&format!("Failed to send classification message: {}", e));
             EimError::SocketError(format!("Failed to send classify message: {}", e))
         })?;
