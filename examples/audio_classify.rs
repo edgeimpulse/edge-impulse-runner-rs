@@ -38,9 +38,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     let params = AudioClassifyParams::parse();
     let mut model = EimModel::new(&params.model)?;
 
-    // Get model configuration
-    let model_params = model.parameters()?;
-
     let audio_path = PathBuf::from(&params.audio);
 
     // Read audio file and convert to features

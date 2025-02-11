@@ -340,46 +340,46 @@ impl EimModel {
         };
 
         let msg = serde_json::to_string(&hello_msg)?;
-        println!("Sending hello message: {}", msg);
+        self.debug_message(&format!("Sending hello message: {}", msg));
 
         writeln!(self.socket, "{}", msg)
             .map_err(|e| {
-                println!("Failed to send hello: {}", e);
+                self.debug_message(&format!("Failed to send hello: {}", e));
                 EimError::SocketError(format!("Failed to send hello message: {}", e))
             })?;
 
         self.socket.flush().map_err(|e| {
-            println!("Failed to flush hello: {}", e);
+            self.debug_message(&format!("Failed to flush hello: {}", e));
             EimError::SocketError(format!("Failed to flush socket: {}", e))
         })?;
 
-        println!("Waiting for hello response...");
+        self.debug_message("Waiting for hello response...");
 
         let mut reader = BufReader::new(&self.socket);
         let mut line = String::new();
 
         match reader.read_line(&mut line) {
             Ok(n) => {
-                println!("Read {} bytes: {}", n, line);
+                self.debug_message(&format!("Read {} bytes: {}", n, line));
 
                 match serde_json::from_str::<ModelInfo>(&line) {
                     Ok(info) => {
-                        println!("Successfully parsed model info");
+                        self.debug_message("Successfully parsed model info");
                         if !info.success {
-                            println!("Model initialization failed");
+                            self.debug_message("Model initialization failed");
                             return Err(EimError::ExecutionError(
                                 "Model initialization failed".to_string(),
                             ));
                         }
-                        println!("Got model info response, storing it");
+                        self.debug_message("Got model info response, storing it");
                         self.model_info = Some(info);
                         return Ok(());
                     }
                     Err(e) => {
-                        println!("Failed to parse model info: {}", e);
+                        self.debug_message(&format!("Failed to parse model info: {}", e));
                         if let Ok(error) = serde_json::from_str::<ErrorResponse>(&line) {
                             if !error.success {
-                                println!("Got error response: {:?}", error);
+                                self.debug_message(&format!("Got error response: {:?}", error));
                                 return Err(EimError::ExecutionError(
                                     error.error.unwrap_or_else(|| "Unknown error".to_string()),
                                 ));
@@ -389,12 +389,12 @@ impl EimModel {
                 }
             }
             Err(e) => {
-                println!("Failed to read hello response: {}", e);
+                self.debug_message(&format!("Failed to read hello response: {}", e));
                 return Err(EimError::SocketError(format!("Failed to read response: {}", e)));
             }
         }
 
-        println!("No valid hello response received");
+        self.debug_message("No valid hello response received");
         Err(EimError::SocketError(
             "No valid response received".to_string(),
         ))
@@ -487,9 +487,9 @@ impl EimModel {
     fn classify_single(&mut self, features: Vec<f32>, debug: Option<bool>) -> Result<InferenceResponse, EimError> {
         // First ensure we've sent the hello message and received model info
         if self.model_info.is_none() {
-            println!("No model info, sending hello message...");
+            self.debug_message("No model info, sending hello message...");
             self.send_hello()?;
-            println!("Hello handshake completed");
+            self.debug_message("Hello handshake completed");
         }
 
         let msg = ClassifyMessage {
@@ -499,23 +499,23 @@ impl EimModel {
         };
 
         let msg = serde_json::to_string(&msg)?;
-        println!("Sending classification message: {}", msg);
+        self.debug_message(&format!("Sending classification message: {}", msg));
 
         writeln!(self.socket, "{}", msg).map_err(|e| {
-            println!("Failed to send classification message: {}", e);
+            self.debug_message(&format!("Failed to send classification message: {}", e));
             EimError::SocketError(format!("Failed to send classify message: {}", e))
         })?;
 
         self.socket.flush().map_err(|e| {
-            println!("Failed to flush classification message: {}", e);
+            self.debug_message(&format!("Failed to flush classification message: {}", e));
             EimError::SocketError(format!("Failed to flush socket: {}", e))
         })?;
 
-        println!("Classification message sent, waiting for response...");
+        self.debug_message("Classification message sent, waiting for response...");
 
         // Set socket to non-blocking mode
         self.socket.set_nonblocking(true).map_err(|e| {
-            println!("Failed to set non-blocking mode: {}", e);
+            self.debug_message(&format!("Failed to set non-blocking mode: {}", e));
             EimError::SocketError(format!("Failed to set non-blocking mode: {}", e))
         })?;
 
@@ -527,16 +527,16 @@ impl EimModel {
         while start.elapsed() < timeout {
             match reader.read_line(&mut buffer) {
                 Ok(0) => {
-                    println!("EOF reached");
+                    self.debug_message("EOF reached");
                     break;
                 },
                 Ok(n) => {
-                    println!("Read {} bytes: {}", n, buffer);
+                    self.debug_message(&format!("Read {} bytes: {}", n, buffer));
                     if let Ok(response) = serde_json::from_str::<InferenceResponse>(&buffer) {
                         if response.success {
-                            println!("Got successful classification response");
+                            self.debug_message("Got successful classification response");
                             // Reset to blocking mode before returning
-                            self.socket.set_nonblocking(false)?;
+                            let _ = self.socket.set_nonblocking(false);
                             return Ok(response);
                         }
                     }
@@ -548,7 +548,7 @@ impl EimModel {
                     continue;
                 }
                 Err(e) => {
-                    println!("Read error: {}", e);
+                    self.debug_message(&format!("Read error: {}", e));
                     // Always try to reset blocking mode, even on error
                     let _ = self.socket.set_nonblocking(false);
                     return Err(EimError::SocketError(format!("Read error: {}", e)));
@@ -558,7 +558,7 @@ impl EimModel {
 
         // Reset to blocking mode before returning
         let _ = self.socket.set_nonblocking(false);
-        println!("Timeout reached");
+        self.debug_message("Timeout reached");
 
         Err(EimError::ExecutionError(format!(
             "No valid response received within {} seconds",
