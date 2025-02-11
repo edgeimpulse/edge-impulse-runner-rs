@@ -23,16 +23,14 @@
 //! Note: This only works on MacOS and requires a webcam connected to the system.
 
 use clap::Parser;
-use edge_impulse_runner::{
-    InferenceResult,
-    EimModel,
-};
+use edge_impulse_runner::{EimModel, InferenceResult};
 use gstreamer as gst;
 use gstreamer::prelude::*;
 use gstreamer_app as gst_app;
 use gstreamer_video::{self, VideoCapsBuilder, VideoInfo};
 use std::error::Error;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 /// Command line parameters for the video classification example
 #[derive(Parser, Debug)]
@@ -56,6 +54,7 @@ where
 }
 
 #[cfg(target_os = "macos")]
+#[allow(unexpected_cfgs)] // Suppress the warnings from objc macros
 fn run<T, F: FnOnce() -> T + Send + 'static>(main: F) -> T
 where
     T: Send + 'static,
@@ -130,7 +129,9 @@ where
     }
 }
 
-fn create_pipeline(params: &edge_impulse_runner::ModelParameters) -> Result<gst::Pipeline, Box<dyn Error>> {
+fn create_pipeline(
+    params: &edge_impulse_runner::ModelParameters,
+) -> Result<gst::Pipeline, Box<dyn Error>> {
     println!(
         "Setting up pipeline for {}x{} input with {} channels",
         params.image_input_width, params.image_input_height, params.image_channel_count
@@ -209,7 +210,7 @@ fn create_pipeline(params: &edge_impulse_runner::ModelParameters) -> Result<gst:
 fn process_sample(
     buffer: &gst::buffer::BufferRef,
     info: &gstreamer_video::VideoInfo,
-    params: &edge_impulse_runner::ModelParameters
+    params: &edge_impulse_runner::ModelParameters,
 ) -> Vec<f32> {
     let map = buffer.map_readable().unwrap();
     let data = map.as_slice();
@@ -219,9 +220,6 @@ fn process_sample(
     let stride = info.stride()[0] as usize;
     let channels = params.image_channel_count as usize;
     let expected_features = params.input_features_count as usize;
-
-    println!("Model expects {} features with {} channels", expected_features, channels);
-    println!("Image is {}x{} with stride {}", width, height, stride);
 
     // Convert to features based on model requirements
     let mut features = Vec::with_capacity(expected_features);
@@ -237,7 +235,6 @@ fn process_sample(
 
     // Verify size and truncate if necessary
     if features.len() != expected_features {
-        println!("WARNING: Got {} features, expected {}. Truncating.", features.len(), expected_features);
         features.truncate(expected_features);
     }
 
@@ -269,6 +266,12 @@ fn example_main() -> Result<(), Box<dyn Error>> {
         input_width, input_height, channel_count, features_count
     );
 
+    // Add the image format details here
+    println!(
+        "Image format will be {}x{} with {} channels",
+        input_width, input_height, channel_count
+    );
+
     // Create pipeline with the extracted parameters
     let pipeline = create_pipeline(&edge_impulse_runner::ModelParameters {
         image_input_width: input_width,
@@ -288,25 +291,31 @@ fn example_main() -> Result<(), Box<dyn Error>> {
     let model = Arc::clone(&model);
     let debug = params.debug;
 
+    // Add timestamp tracking before the sink callbacks
+    let last_no_detection = Arc::new(Mutex::new(Instant::now()));
+    let last_no_detection_clone = Arc::clone(&last_no_detection);
+
     // Process frames
     sink.set_callbacks(
         gst_app::AppSinkCallbacks::builder()
             .new_sample(move |appsink| {
                 let sample = appsink.pull_sample().map_err(|_| gst::FlowError::Eos)?;
-                let buffer = sample.buffer().ok_or_else(|| {
-                    gst::FlowError::Error
-                })?;
+                let buffer = sample.buffer().ok_or_else(|| gst::FlowError::Error)?;
 
                 let caps = sample.caps().ok_or_else(|| gst::FlowError::Error)?;
                 let info = VideoInfo::from_caps(caps).map_err(|_| gst::FlowError::Error)?;
 
-                let features = process_sample(buffer, &info, &edge_impulse_runner::ModelParameters {
-                    image_input_width: input_width,
-                    image_input_height: input_height,
-                    image_channel_count: channel_count,
-                    input_features_count: features_count,
-                    ..Default::default()
-                });
+                let features = process_sample(
+                    buffer,
+                    &info,
+                    &edge_impulse_runner::ModelParameters {
+                        image_input_width: input_width,
+                        image_input_height: input_height,
+                        image_channel_count: channel_count,
+                        input_features_count: features_count,
+                        ..Default::default()
+                    },
+                );
 
                 // Run inference
                 if let Ok(mut model) = model.lock() {
@@ -316,9 +325,25 @@ fn example_main() -> Result<(), Box<dyn Error>> {
                             match result.result {
                                 InferenceResult::Classification { classification } => {
                                     println!("Classification: {:?}", classification);
-                                },
-                                InferenceResult::ObjectDetection { bounding_boxes, classification } => {
-                                    println!("Detected objects: {:?}", bounding_boxes);
+                                }
+                                InferenceResult::ObjectDetection {
+                                    bounding_boxes,
+                                    classification,
+                                } => {
+                                    if !bounding_boxes.is_empty() {
+                                        println!("Detected objects: {:?}", bounding_boxes);
+                                        if let Ok(mut last) = last_no_detection_clone.lock() {
+                                            *last = Instant::now();
+                                        }
+                                    } else {
+                                        // Check if 5 seconds have passed since last notification
+                                        if let Ok(mut last) = last_no_detection_clone.lock() {
+                                            if last.elapsed() >= Duration::from_secs(5) {
+                                                println!("No objects detected");
+                                                *last = Instant::now();
+                                            }
+                                        }
+                                    }
                                     if !classification.is_empty() {
                                         println!("Classification: {:?}", classification);
                                     }
@@ -333,7 +358,7 @@ fn example_main() -> Result<(), Box<dyn Error>> {
 
                 Ok(gst::FlowSuccess::Ok)
             })
-            .build()
+            .build(),
     );
 
     // Start playing
