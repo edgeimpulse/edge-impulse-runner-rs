@@ -45,7 +45,7 @@ impl From<u32> for SensorType {
 }
 
 /// Debug callback type for receiving debug messages
-pub type DebugCallback = Box<dyn Fn(&str) + Send>;
+pub type DebugCallback = Box<dyn Fn(&str) + Send + Sync>;
 
 /// Edge Impulse Model runner for Linux-based systems.
 ///
@@ -242,7 +242,7 @@ impl EimModel {
     /// Set a debug callback function to receive debug messages
     pub fn set_debug_callback<F>(&mut self, callback: F)
     where
-        F: Fn(&str) + Send + 'static,
+        F: Fn(&str) + Send + Sync + 'static,
     {
         self.debug_callback = Some(Box::new(callback));
     }
