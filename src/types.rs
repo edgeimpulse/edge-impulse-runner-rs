@@ -15,7 +15,7 @@ pub struct ModelParameters {
     /// Number of axes for motion/positional data (e.g., 3 for xyz accelerometer)
     pub axis_count: u32,
     /// Sampling frequency in Hz for time-series data
-    pub frequency: u32,
+    pub frequency: f32,
     /// Indicates if the model supports anomaly detection (0 = no, 1 = yes)
     pub has_anomaly: u32,
     /// Number of color channels in input images (1 = grayscale, 3 = RGB)

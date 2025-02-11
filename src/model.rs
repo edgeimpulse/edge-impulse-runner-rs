@@ -5,11 +5,12 @@ use std::process::{Child, Command};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 use std::fmt;
+use std::collections::{VecDeque, HashMap};
 
 use crate::error::EimError;
 use crate::messages::{
     ClassifyMessage, ConfigMessage, ConfigOptions, ConfigResponse, ErrorResponse, HelloMessage,
-    InferenceResponse, ModelInfo,
+    InferenceResponse, ModelInfo, InferenceResult,
 };
 use crate::types::ModelParameters;
 
@@ -83,6 +84,89 @@ pub struct EimModel {
     /// Optional child process handle for restart functionality
     #[allow(dead_code)]
     child: Option<Child>,
+    continuous_state: Option<ContinuousState>,
+}
+
+#[derive(Debug)]
+struct ContinuousState {
+    feature_matrix: Vec<f32>,
+    slice_offset: usize,
+    feature_buffer_full: bool,
+    maf_buffers: HashMap<String, MovingAverageFilter>,
+}
+
+impl ContinuousState {
+    fn new(labels: Vec<String>) -> Self {
+        Self {
+            feature_matrix: Vec::new(),
+            slice_offset: 0,
+            feature_buffer_full: false,
+            maf_buffers: labels.into_iter()
+                .map(|label| (label, MovingAverageFilter::new(4)))
+                .collect(),
+        }
+    }
+
+    fn update_features(&mut self, features: &[f32], feature_size: usize) {
+        // Add features to the matrix at the current slice offset
+        while self.feature_matrix.len() < self.slice_offset + feature_size {
+            self.feature_matrix.push(0.0);
+        }
+
+        for (i, &value) in features.iter().enumerate() {
+            self.feature_matrix[self.slice_offset + i] = value;
+        }
+
+        // Update slice offset and buffer full status
+        if !self.feature_buffer_full {
+            self.slice_offset += feature_size;
+            if self.slice_offset > (self.feature_matrix.len() - feature_size) {
+                self.feature_buffer_full = true;
+                self.slice_offset -= feature_size;
+            }
+        }
+    }
+
+    fn shift_features(&mut self, feature_size: usize) {
+        for i in 0..(self.feature_matrix.len() - feature_size) {
+            self.feature_matrix[i] = self.feature_matrix[i + feature_size];
+        }
+    }
+
+    fn apply_maf(&mut self, classification: &mut HashMap<String, f32>) {
+        for (label, value) in classification.iter_mut() {
+            if let Some(maf) = self.maf_buffers.get_mut(label) {
+                *value = maf.update(*value);
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct MovingAverageFilter {
+    buffer: VecDeque<f32>,
+    running_sum: f32,
+}
+
+impl MovingAverageFilter {
+    fn new(window_size: usize) -> Self {
+        Self {
+            buffer: VecDeque::with_capacity(window_size),
+            running_sum: 0.0,
+        }
+    }
+
+    fn update(&mut self, value: f32) -> f32 {
+        if self.buffer.len() >= self.buffer.capacity() {
+            if let Some(old) = self.buffer.pop_front() {
+                self.running_sum -= old;
+            }
+        }
+        self.buffer.push_back(value);
+        self.running_sum += value;
+
+        self.running_sum / self.buffer.len() as f32
+    }
 }
 
 impl fmt::Debug for EimModel {
@@ -97,6 +181,7 @@ impl fmt::Debug for EimModel {
             .field("message_id", &self.message_id)
             .field("child", &self.child)
             // Skip debug_callback field as it doesn't implement Debug
+            .field("continuous_state", &self.continuous_state)
             .finish()
     }
 }
@@ -186,6 +271,7 @@ impl EimModel {
             message_id: AtomicU32::new(1),
             child: None,
             debug_callback: None,
+            continuous_state: None,
         };
 
         // Initialize the model by sending hello message
@@ -264,39 +350,61 @@ impl EimModel {
         };
 
         let msg = serde_json::to_string(&hello_msg)?;
-        self.debug_message(&format!("-> {}", msg));
+        println!("Sending hello message: {}", msg);
 
         writeln!(self.socket, "{}", msg)
-            .map_err(|e| EimError::SocketError(format!("Failed to send hello message: {}", e)))?;
+            .map_err(|e| {
+                println!("Failed to send hello: {}", e);
+                EimError::SocketError(format!("Failed to send hello message: {}", e))
+            })?;
 
-        let reader = BufReader::new(&self.socket);
-        for line in reader.lines() {
-            let line =
-                line.map_err(|e| EimError::SocketError(format!("Failed to read response: {}", e)))?;
+        self.socket.flush().map_err(|e| {
+            println!("Failed to flush hello: {}", e);
+            EimError::SocketError(format!("Failed to flush socket: {}", e))
+        })?;
 
-            if self.debug {
-                println!("<- {}", line);
-            }
+        println!("Waiting for hello response...");
 
-            if let Ok(info) = serde_json::from_str::<ModelInfo>(&line) {
-                if !info.success {
-                    return Err(EimError::ExecutionError(
-                        "Model initialization failed".to_string(),
-                    ));
+        let mut reader = BufReader::new(&self.socket);
+        let mut line = String::new();
+
+        match reader.read_line(&mut line) {
+            Ok(n) => {
+                println!("Read {} bytes: {}", n, line);
+
+                match serde_json::from_str::<ModelInfo>(&line) {
+                    Ok(info) => {
+                        println!("Successfully parsed model info");
+                        if !info.success {
+                            println!("Model initialization failed");
+                            return Err(EimError::ExecutionError(
+                                "Model initialization failed".to_string(),
+                            ));
+                        }
+                        println!("Got model info response, storing it");
+                        self.model_info = Some(info);
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        println!("Failed to parse model info: {}", e);
+                        if let Ok(error) = serde_json::from_str::<ErrorResponse>(&line) {
+                            if !error.success {
+                                println!("Got error response: {:?}", error);
+                                return Err(EimError::ExecutionError(
+                                    error.error.unwrap_or_else(|| "Unknown error".to_string()),
+                                ));
+                            }
+                        }
+                    }
                 }
-                self.model_info = Some(info);
-                return Ok(());
             }
-
-            if let Ok(error) = serde_json::from_str::<ErrorResponse>(&line) {
-                if !error.success {
-                    return Err(EimError::ExecutionError(
-                        error.error.unwrap_or_else(|| "Unknown error".to_string()),
-                    ));
-                }
+            Err(e) => {
+                println!("Failed to read hello response: {}", e);
+                return Err(EimError::SocketError(format!("Failed to read response: {}", e)));
             }
         }
 
+        println!("No valid hello response received");
         Err(EimError::SocketError(
             "No valid response received".to_string(),
         ))
@@ -328,36 +436,15 @@ impl EimModel {
             .ok_or_else(|| EimError::ExecutionError("Model info not available".to_string()))
     }
 
-    /// Classifies input features using the model.
-    ///
-    /// Sends a classification request to the model and waits for the inference response.
-    /// This method is for one-shot classification of preprocessed feature data.
-    ///
-    /// # Arguments
-    ///
-    /// * `features` - Vector of preprocessed features matching the model's input requirements
-    /// * `debug` - Optional flag to enable debug output for this specific classification
-    ///
-    /// # Returns
-    ///
-    /// Returns `Result<InferenceResponse, EimError>` where:
-    /// - `Ok(InferenceResponse)` - Contains classification results and confidence scores
-    /// - `Err(EimError)` - Classification failed (communication error, invalid features, etc.)
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # use edge_impulse_runner::EimModel;
-    /// # let mut model = EimModel::new("path/to/model.eim").unwrap();
-    /// let features = vec![0.1, 0.2, 0.3]; // Preprocessed input features
-    /// let result = model.classify(features, Some(true)).unwrap();
-    /// println!("Classification result: {:?}", result);
-    /// ```
-    pub fn classify(
-        &mut self,
-        features: Vec<f32>,
-        debug: Option<bool>,
-    ) -> Result<InferenceResponse, EimError> {
+    /// Regular classification - processes input features directly
+    pub fn classify(&mut self, features: Vec<f32>, debug: Option<bool>) -> Result<InferenceResponse, EimError> {
+        // First ensure we've sent the hello message and received model info
+        if self.model_info.is_none() {
+            println!("No model info, sending hello message...");  // Debug print
+            self.send_hello()?;
+            println!("Hello handshake completed");  // Debug print
+        }
+
         let msg = ClassifyMessage {
             classify: features,
             id: self.next_message_id(),
@@ -365,87 +452,106 @@ impl EimModel {
         };
 
         let msg = serde_json::to_string(&msg)?;
-        self.debug_message(&format!("-> {}", msg));
+        println!("Sending classification message: {}", msg);  // Debug print
 
         writeln!(self.socket, "{}", msg).map_err(|e| {
+            println!("Failed to send classification message: {}", e);  // Debug print
             EimError::SocketError(format!("Failed to send classify message: {}", e))
         })?;
+
         self.socket.flush().map_err(|e| {
+            println!("Failed to flush classification message: {}", e);  // Debug print
             EimError::SocketError(format!("Failed to flush socket: {}", e))
         })?;
 
-        // Set socket to non-blocking mode
-        self.socket.set_nonblocking(true).map_err(|e| {
-            EimError::SocketError(format!("Failed to set non-blocking mode: {}", e))
-        })?;
+        println!("Classification message sent, waiting for response...");  // Debug print
 
+        // Try reading response in blocking mode
         let mut reader = BufReader::new(&self.socket);
         let mut buffer = String::new();
-        let start = Instant::now();
-        let timeout = Duration::from_secs(5); // Increased timeout for slower systems
 
-        while start.elapsed() < timeout {
-            match reader.read_line(&mut buffer) {
-                Ok(0) => break, // EOF
-                Ok(_) => {
-                    self.debug_message(&format!("<- {}", buffer.trim()));
-
-                    if let Ok(response) = serde_json::from_str::<InferenceResponse>(&buffer) {
-                        if response.success {
-                            // Reset to blocking mode before returning
-                            self.socket.set_nonblocking(false).map_err(|e| {
-                                EimError::SocketError(format!("Failed to reset blocking mode: {}", e))
-                            })?;
-                            return Ok(response);
-                        }
+        match reader.read_line(&mut buffer) {
+            Ok(n) => {
+                println!("Read {} bytes: {}", n, buffer);  // Debug print
+                if let Ok(response) = serde_json::from_str::<InferenceResponse>(&buffer) {
+                    if response.success {
+                        println!("Got successful classification response");  // Debug print
+                        return Ok(response);
                     }
-                    buffer.clear();
                 }
-                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                    // No data available yet, sleep briefly and retry
-                    std::thread::sleep(Duration::from_millis(1));
-                    continue;
-                }
-                Err(e) => {
-                    // Always try to reset blocking mode, even on error
-                    let _ = self.socket.set_nonblocking(false);
-                    return Err(EimError::SocketError(format!("Read error: {}", e)));
-                }
+                println!("Response parsing failed: {}", buffer);  // Debug print
+            }
+            Err(e) => {
+                println!("Error reading classification response: {}", e);  // Debug print
+                return Err(EimError::SocketError(format!("Read error: {}", e)));
             }
         }
 
-        // Reset to blocking mode before returning
-        let _ = self.socket.set_nonblocking(false);
-
-        Err(EimError::ExecutionError(format!(
-            "No valid response received within {} seconds",
-            timeout.as_secs()
-        )))
+        println!("No valid classification response received");  // Debug print
+        Err(EimError::ExecutionError("No valid response received".to_string()))
     }
 
-    /// Classify continuous data (for models that support it)
+    /// Continuous classification with buffering and smoothing
     pub fn classify_continuous(
         &mut self,
         features: Vec<f32>,
     ) -> Result<InferenceResponse, EimError> {
-        // First ensure continuous mode is enabled
-        self.set_continuous_mode(true)?;
+        // Initialize continuous state if needed
+        if self.continuous_state.is_none() {
+            let labels = self.model_info.as_ref()
+                .map(|info| info.model_parameters.labels.clone())
+                .unwrap_or_default();
 
-        // Then perform classification with continuous mode specific handling
-        let result = self.classify(features, None)?;
-
-        // If classification failed, disable continuous mode before returning error
-        if !result.success {
-            let _ = self.set_continuous_mode(false); // Best effort cleanup
-            return Err(EimError::ExecutionError("Continuous classification failed".to_string()));
+            self.continuous_state = Some(ContinuousState::new(labels));
         }
+
+        let feature_size = features.len();
+
+        // Take ownership of the state temporarily
+        let mut state = self.continuous_state.take().unwrap();
+
+        // Update feature matrix with new data
+        state.update_features(&features, feature_size);
+
+        let result = if state.feature_buffer_full {
+            // Run inference
+            let mut result = self.classify(state.feature_matrix.clone(), None)?;
+
+            // Apply moving average filter to smooth results
+            if let InferenceResult::Classification { classification } = &mut result.result {
+                for (label, value) in classification.iter_mut() {
+                    if let Some(maf) = state.maf_buffers.get_mut(label) {
+                        *value = maf.update(*value);
+                    }
+                }
+            }
+
+            // Shift feature buffer
+            for i in 0..(state.feature_matrix.len() - feature_size) {
+                state.feature_matrix[i] = state.feature_matrix[i + feature_size];
+            }
+
+            result
+        } else {
+            // Buffer not full yet
+            InferenceResponse {
+                success: true,
+                id: self.next_message_id(),
+                result: InferenceResult::Classification {
+                    classification: HashMap::new(),
+                },
+            }
+        };
+
+        // Put the state back
+        self.continuous_state = Some(state);
 
         Ok(result)
     }
 
-    /// Clean up continuous mode when done with continuous classification
-    pub fn stop_continuous(&mut self) -> Result<(), EimError> {
-        self.set_continuous_mode(false)
+    /// Stop continuous classification and clear buffers
+    pub fn stop_continuous(&mut self) {
+        self.continuous_state = None;
     }
 
     /// Set whether to use continuous mode for classification
@@ -457,12 +563,10 @@ impl EimModel {
             id: self.next_message_id(),
         };
 
-        let msg = serde_json::to_string(&msg)?;
-        if self.debug {
-            println!("-> {}", msg);
-        }
+        let msg_str = serde_json::to_string(&msg)?;
+        self.debug_message(&format!("-> {}", msg_str));
 
-        writeln!(self.socket, "{}", msg)
+        writeln!(self.socket, "{}", msg_str)
             .map_err(|e| EimError::SocketError(format!("Failed to send config message: {}", e)))?;
 
         let reader = BufReader::new(&self.socket);
@@ -470,24 +574,27 @@ impl EimModel {
             let line =
                 line.map_err(|e| EimError::SocketError(format!("Failed to read response: {}", e)))?;
 
-            if self.debug {
-                println!("<- {}", line);
-            }
+            self.debug_message(&format!("<- {}", line));
 
             if let Ok(response) = serde_json::from_str::<ConfigResponse>(&line) {
                 if !response.success {
-                    return Err(EimError::ExecutionError(
-                        "Failed to set configuration".to_string(),
-                    ));
+                    return Err(EimError::ExecutionError(format!(
+                        "Failed to set configuration. Request: {}, Response: {}",
+                        msg_str,
+                        line
+                    )));
                 }
                 return Ok(());
             }
 
             if let Ok(error) = serde_json::from_str::<ErrorResponse>(&line) {
                 if !error.success {
-                    return Err(EimError::ExecutionError(
-                        error.error.unwrap_or_else(|| "Unknown error".to_string()),
-                    ));
+                    return Err(EimError::ExecutionError(format!(
+                        "Failed to set configuration. Request: {}, Error Response: {}, Error Details: {}",
+                        msg_str,
+                        line,
+                        error.error.unwrap_or_else(|| "No error details provided".to_string())
+                    )));
                 }
             }
         }
