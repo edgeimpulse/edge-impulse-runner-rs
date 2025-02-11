@@ -49,20 +49,20 @@ fn main() -> Result<(), Box<dyn Error>> {
         .collect();
 
     println!("Read {} samples from audio file", samples.len());
-    println!("Model expects {} samples", model.get_slice_size());
+    println!("Model expects {} samples", model.input_size()?);
 
     // Ensure we have enough samples
-    if samples.len() < model.get_slice_size() {
+    if samples.len() < model.input_size()? {
         return Err(format!(
             "Audio file too short. Got {} samples, need {}",
             samples.len(),
-            model.get_slice_size()
+            model.input_size()?
         )
         .into());
     }
 
     // Take exactly the number of samples we need
-    let samples = samples[..model.get_slice_size()].to_vec();
+    let samples = samples[..model.input_size()?].to_vec();
     println!("Using {} samples for classification", samples.len());
 
     // Run classification

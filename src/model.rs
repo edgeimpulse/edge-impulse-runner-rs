@@ -316,6 +316,14 @@ impl EimModel {
     }
 
     /// Set a debug callback function to receive debug messages
+    ///
+    /// When debug mode is enabled, this callback will be invoked with debug messages
+    /// from the model runner. This is useful for logging or displaying debug information
+    /// in your application.
+    ///
+    /// # Arguments
+    ///
+    /// * `callback` - Function that takes a string slice and handles the debug message
     pub fn set_debug_callback<F>(&mut self, callback: F)
     where
         F: Fn(&str) + Send + Sync + 'static,
@@ -323,7 +331,7 @@ impl EimModel {
         self.debug_callback = Some(Box::new(callback));
     }
 
-    /// Internal helper to send debug messages
+    /// Send debug messages when debug mode is enabled
     fn debug_message(&self, message: &str) {
         if self.debug {
             println!("{}", message);
@@ -405,7 +413,7 @@ impl EimModel {
         &self.path
     }
 
-    /// Get the socket path that will be used for communication
+    /// Get the socket path used for communication
     pub fn socket_path(&self) -> &Path {
         &self.socket_path
     }
@@ -427,6 +435,28 @@ impl EimModel {
     }
 
     /// Run inference on the input features
+    ///
+    /// This method automatically handles both continuous and non-continuous modes:
+    ///
+    /// ## Non-Continuous Mode
+    /// - Each call is independent
+    /// - All features must be provided in a single call
+    /// - Results are returned immediately
+    ///
+    /// ## Continuous Mode (automatically enabled for supported models)
+    /// - Features are accumulated across calls
+    /// - Internal buffer maintains sliding window of features
+    /// - Moving average filter smooths results
+    /// - Initial calls may return empty results while buffer fills
+    ///
+    /// # Arguments
+    ///
+    /// * `features` - Vector of input features
+    /// * `debug` - Optional debug flag to enable detailed output for this inference
+    ///
+    /// # Returns
+    ///
+    /// Returns `Result<InferenceResponse, EimError>` containing classification results
     pub fn classify(&mut self, features: Vec<f32>, debug: Option<bool>) -> Result<InferenceResponse, EimError> {
         // Initialize model info if needed
         if self.model_info.is_none() {
@@ -448,7 +478,7 @@ impl EimModel {
             let labels = self.model_info.as_ref()
                 .map(|info| info.model_parameters.labels.clone())
                 .unwrap_or_default();
-            let slice_size = self.get_slice_size();
+            let slice_size = self.input_size()?;
 
             self.continuous_state = Some(ContinuousState::new(labels, slice_size));
         }
@@ -566,56 +596,7 @@ impl EimModel {
         )))
     }
 
-    /// Continuous classification with buffering and smoothing
-    pub fn classify_continuous(&mut self, features: Vec<f32>) -> Result<InferenceResponse, EimError> {
-        // Initialize continuous state if needed
-        if self.continuous_state.is_none() {
-            let labels = self.model_info.as_ref()
-                .map(|info| info.model_parameters.labels.clone())
-                .unwrap_or_default();
-            let slice_size = self.get_slice_size();
-
-            self.continuous_state = Some(ContinuousState::new(labels, slice_size));
-        }
-
-        // Take ownership of the state temporarily
-        let mut state = self.continuous_state.take().unwrap();
-
-        // Update feature matrix with new data
-        state.update_features(&features);
-
-        let result = if state.feature_buffer_full {
-            // Run inference
-            let mut result = self.classify(state.feature_matrix.clone(), None)?;
-
-            // Apply moving average filter to smooth results
-            if let InferenceResult::Classification { classification } = &mut result.result {
-                state.apply_maf(classification);
-            }
-
-            result
-        } else {
-            // Buffer not full yet
-            InferenceResponse {
-                success: true,
-                id: self.next_message_id(),
-                result: InferenceResult::Classification {
-                    classification: HashMap::new(),
-                },
-            }
-        };
-
-        // Put the state back
-        self.continuous_state = Some(state);
-
-        Ok(result)
-    }
-
-    /// Stop continuous classification and clear buffers
-    pub fn stop_continuous(&mut self) {
-        self.continuous_state = None;
-    }
-
+    /// Check if model requires continuous mode
     fn requires_continuous_mode(&self) -> bool {
         self.model_info
             .as_ref()
@@ -623,10 +604,21 @@ impl EimModel {
             .unwrap_or(false)
     }
 
-    pub fn get_slice_size(&self) -> usize {
+    /// Get the required number of input features for this model
+    ///
+    /// Returns the number of features expected by the model for each classification.
+    /// This is useful for:
+    /// - Validating input size before classification
+    /// - Preparing the correct amount of data
+    /// - Padding or truncating inputs to match model requirements
+    ///
+    /// # Returns
+    ///
+    /// The number of input features required by the model
+    pub fn input_size(&self) -> Result<usize, EimError> {
         self.model_info
             .as_ref()
             .map(|info| info.model_parameters.input_features_count as usize)
-            .unwrap_or(0)
+            .ok_or_else(|| EimError::ExecutionError("Model info not available".to_string()))
     }
 }
