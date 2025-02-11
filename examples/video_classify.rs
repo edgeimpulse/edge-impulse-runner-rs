@@ -145,12 +145,20 @@ fn create_pipeline(params: &edge_impulse_runner::ModelParameters) -> Result<gst:
     let scale = gst::ElementFactory::make("videoscale").build()?;
     let tee = gst::ElementFactory::make("tee").build()?;
 
-    // Preview branch
+    // Preview branch with optimized queue settings
     let queue_preview = gst::ElementFactory::make("queue").build()?;
+    queue_preview.set_property_from_str("leaky", "downstream");
+    queue_preview.set_property("max-size-buffers", 2u32);
+    queue_preview.set_property("max-size-bytes", 0u32);
+    queue_preview.set_property("max-size-time", gst::ClockTime::from_seconds(0));
     let autovideosink = gst::ElementFactory::make("autovideosink").build()?;
 
-    // Analysis branch
+    // Analysis branch with optimized queue settings
     let queue_analysis = gst::ElementFactory::make("queue").build()?;
+    queue_analysis.set_property_from_str("leaky", "downstream");
+    queue_analysis.set_property("max-size-buffers", 1u32);
+    queue_analysis.set_property("max-size-bytes", 0u32);
+    queue_analysis.set_property("max-size-time", gst::ClockTime::from_seconds(0));
     let appsink = gst::ElementFactory::make("appsink")
         .property("emit-signals", true)
         .build()?;
