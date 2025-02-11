@@ -1,7 +1,7 @@
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
-use std::process::{Child, Command};
+use std::process::Child;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 use std::fmt;
@@ -9,7 +9,7 @@ use std::collections::{VecDeque, HashMap};
 
 use crate::error::EimError;
 use crate::messages::{
-    ClassifyMessage, ConfigMessage, ConfigOptions, ConfigResponse, ErrorResponse, HelloMessage,
+    ClassifyMessage, ErrorResponse, HelloMessage,
     InferenceResponse, ModelInfo, InferenceResult,
 };
 use crate::types::ModelParameters;
@@ -85,44 +85,47 @@ pub struct EimModel {
     #[allow(dead_code)]
     child: Option<Child>,
     continuous_state: Option<ContinuousState>,
+    model_parameters: ModelParameters,
 }
 
 #[derive(Debug)]
 struct ContinuousState {
     feature_matrix: Vec<f32>,
-    slice_offset: usize,
     feature_buffer_full: bool,
     maf_buffers: HashMap<String, MovingAverageFilter>,
+    slice_size: usize,
 }
 
 impl ContinuousState {
-    fn new(labels: Vec<String>) -> Self {
+    fn new(labels: Vec<String>, slice_size: usize) -> Self {
         Self {
             feature_matrix: Vec::new(),
-            slice_offset: 0,
             feature_buffer_full: false,
             maf_buffers: labels.into_iter()
                 .map(|label| (label, MovingAverageFilter::new(4)))
                 .collect(),
+            slice_size,
         }
     }
 
-    fn update_features(&mut self, features: &[f32], feature_size: usize) {
-        // Add features to the matrix at the current slice offset
-        while self.feature_matrix.len() < self.slice_offset + feature_size {
-            self.feature_matrix.push(0.0);
-        }
+    fn update_features(&mut self, features: &[f32]) {
+        // Add new features to the matrix
+        self.feature_matrix.extend_from_slice(features);
 
-        for (i, &value) in features.iter().enumerate() {
-            self.feature_matrix[self.slice_offset + i] = value;
+        // Check if buffer is full
+        if self.feature_matrix.len() >= self.slice_size {
+            self.feature_buffer_full = true;
+            // Keep only the most recent features if we've exceeded the buffer size
+            if self.feature_matrix.len() > self.slice_size {
+                self.feature_matrix.drain(0..self.feature_matrix.len() - self.slice_size);
+            }
         }
+    }
 
-        // Update slice offset and buffer full status
-        if !self.feature_buffer_full {
-            self.slice_offset += feature_size;
-            if self.slice_offset > (self.feature_matrix.len() - feature_size) {
-                self.feature_buffer_full = true;
-                self.slice_offset -= feature_size;
+    fn apply_maf(&mut self, classification: &mut HashMap<String, f32>) {
+        for (label, value) in classification.iter_mut() {
+            if let Some(maf) = self.maf_buffers.get_mut(label) {
+                *value = maf.update(*value);
             }
         }
     }
@@ -131,27 +134,26 @@ impl ContinuousState {
 #[derive(Debug)]
 struct MovingAverageFilter {
     buffer: VecDeque<f32>,
-    running_sum: f32,
+    window_size: usize,
+    sum: f32,
 }
 
 impl MovingAverageFilter {
     fn new(window_size: usize) -> Self {
         Self {
             buffer: VecDeque::with_capacity(window_size),
-            running_sum: 0.0,
+            window_size,
+            sum: 0.0,
         }
     }
 
     fn update(&mut self, value: f32) -> f32 {
-        if self.buffer.len() >= self.buffer.capacity() {
-            if let Some(old) = self.buffer.pop_front() {
-                self.running_sum -= old;
-            }
+        if self.buffer.len() >= self.window_size {
+            self.sum -= self.buffer.pop_front().unwrap();
         }
         self.buffer.push_back(value);
-        self.running_sum += value;
-
-        self.running_sum / self.buffer.len() as f32
+        self.sum += value;
+        self.sum / self.buffer.len() as f32
     }
 }
 
@@ -168,6 +170,7 @@ impl fmt::Debug for EimModel {
             .field("child", &self.child)
             // Skip debug_callback field as it doesn't implement Debug
             .field("continuous_state", &self.continuous_state)
+            .field("model_parameters", &self.model_parameters)
             .finish()
     }
 }
@@ -258,6 +261,7 @@ impl EimModel {
             child: None,
             debug_callback: None,
             continuous_state: None,
+            model_parameters: ModelParameters::default(),
         };
 
         // Initialize the model by sending hello message
@@ -422,8 +426,65 @@ impl EimModel {
             .ok_or_else(|| EimError::ExecutionError("Model info not available".to_string()))
     }
 
-    /// Regular classification - processes input features directly
+    /// Run inference on the input features
     pub fn classify(&mut self, features: Vec<f32>, debug: Option<bool>) -> Result<InferenceResponse, EimError> {
+        // Initialize model info if needed
+        if self.model_info.is_none() {
+            self.send_hello()?;
+        }
+
+        let uses_continuous_mode = self.requires_continuous_mode();
+
+        if uses_continuous_mode {
+            self.classify_continuous_internal(features, debug)
+        } else {
+            self.classify_single(features, debug)
+        }
+    }
+
+    fn classify_continuous_internal(&mut self, features: Vec<f32>, debug: Option<bool>) -> Result<InferenceResponse, EimError> {
+        // Initialize continuous state if needed
+        if self.continuous_state.is_none() {
+            let labels = self.model_info.as_ref()
+                .map(|info| info.model_parameters.labels.clone())
+                .unwrap_or_default();
+            let slice_size = self.get_slice_size();
+
+            self.continuous_state = Some(ContinuousState::new(labels, slice_size));
+        }
+
+        // Take ownership of state temporarily to avoid multiple mutable borrows
+        let mut state = self.continuous_state.take().unwrap();
+        state.update_features(&features);
+
+        let response = if !state.feature_buffer_full {
+            // Return empty response while building up the buffer
+            Ok(InferenceResponse {
+                success: true,
+                id: self.next_message_id(),
+                result: InferenceResult::Classification {
+                    classification: HashMap::new(),
+                },
+            })
+        } else {
+            // Run inference on the full buffer
+            let mut response = self.classify_single(state.feature_matrix.clone(), debug)?;
+
+            // Apply moving average filter to the results
+            if let InferenceResult::Classification { ref mut classification } = response.result {
+                state.apply_maf(classification);
+            }
+
+            Ok(response)
+        };
+
+        // Restore the state
+        self.continuous_state = Some(state);
+
+        response
+    }
+
+    fn classify_single(&mut self, features: Vec<f32>, debug: Option<bool>) -> Result<InferenceResponse, EimError> {
         // First ensure we've sent the hello message and received model info
         if self.model_info.is_none() {
             println!("No model info, sending hello message...");
@@ -506,26 +567,22 @@ impl EimModel {
     }
 
     /// Continuous classification with buffering and smoothing
-    pub fn classify_continuous(
-        &mut self,
-        features: Vec<f32>,
-    ) -> Result<InferenceResponse, EimError> {
+    pub fn classify_continuous(&mut self, features: Vec<f32>) -> Result<InferenceResponse, EimError> {
         // Initialize continuous state if needed
         if self.continuous_state.is_none() {
             let labels = self.model_info.as_ref()
                 .map(|info| info.model_parameters.labels.clone())
                 .unwrap_or_default();
+            let slice_size = self.get_slice_size();
 
-            self.continuous_state = Some(ContinuousState::new(labels));
+            self.continuous_state = Some(ContinuousState::new(labels, slice_size));
         }
-
-        let feature_size = features.len();
 
         // Take ownership of the state temporarily
         let mut state = self.continuous_state.take().unwrap();
 
         // Update feature matrix with new data
-        state.update_features(&features, feature_size);
+        state.update_features(&features);
 
         let result = if state.feature_buffer_full {
             // Run inference
@@ -533,16 +590,7 @@ impl EimModel {
 
             // Apply moving average filter to smooth results
             if let InferenceResult::Classification { classification } = &mut result.result {
-                for (label, value) in classification.iter_mut() {
-                    if let Some(maf) = state.maf_buffers.get_mut(label) {
-                        *value = maf.update(*value);
-                    }
-                }
-            }
-
-            // Shift feature buffer
-            for i in 0..(state.feature_matrix.len() - feature_size) {
-                state.feature_matrix[i] = state.feature_matrix[i + feature_size];
+                state.apply_maf(classification);
             }
 
             result
@@ -568,99 +616,17 @@ impl EimModel {
         self.continuous_state = None;
     }
 
-    /// Set whether to use continuous mode for classification
-    pub fn set_continuous_mode(&mut self, enable: bool) -> Result<(), EimError> {
-        let msg = ConfigMessage {
-            config: ConfigOptions {
-                continuous_mode: Some(enable),
-            },
-            id: self.next_message_id(),
-        };
-
-        let msg_str = serde_json::to_string(&msg)?;
-        self.debug_message(&format!("-> {}", msg_str));
-
-        writeln!(self.socket, "{}", msg_str)
-            .map_err(|e| EimError::SocketError(format!("Failed to send config message: {}", e)))?;
-
-        let reader = BufReader::new(&self.socket);
-        for line in reader.lines() {
-            let line =
-                line.map_err(|e| EimError::SocketError(format!("Failed to read response: {}", e)))?;
-
-            self.debug_message(&format!("<- {}", line));
-
-            if let Ok(response) = serde_json::from_str::<ConfigResponse>(&line) {
-                if !response.success {
-                    return Err(EimError::ExecutionError(format!(
-                        "Failed to set configuration. Request: {}, Response: {}",
-                        msg_str,
-                        line
-                    )));
-                }
-                return Ok(());
-            }
-
-            if let Ok(error) = serde_json::from_str::<ErrorResponse>(&line) {
-                if !error.success {
-                    return Err(EimError::ExecutionError(format!(
-                        "Failed to set configuration. Request: {}, Error Response: {}, Error Details: {}",
-                        msg_str,
-                        line,
-                        error.error.unwrap_or_else(|| "No error details provided".to_string())
-                    )));
-                }
-            }
-        }
-
-        Ok(())
+    fn requires_continuous_mode(&self) -> bool {
+        self.model_info
+            .as_ref()
+            .map(|info| info.model_parameters.use_continuous_mode)
+            .unwrap_or(false)
     }
 
-    #[allow(dead_code)]
-    fn start_process(path: &Path, _debug: bool) -> Result<(Child, UnixStream), EimError> {
-        // Create a temporary socket path in the system's temp directory
-        let socket_path = std::env::temp_dir().join("eim_socket");
-
-        // Remove any existing socket file to avoid "Address already in use" errors
-        if socket_path.exists() {
-            std::fs::remove_file(&socket_path).map_err(|e| {
-                EimError::SocketError(format!("Failed to remove existing socket: {}", e))
-            })?;
-        }
-
-        // Start the EIM process, passing the socket path as an argument
-        let child = Command::new(path)
-            .arg(&socket_path)
-            .spawn()
-            .map_err(|e| EimError::ExecutionError(e.to_string()))?;
-
-        // Attempt to connect to the socket with retries and timeout
-        let stream = Self::connect_with_retry(&socket_path, Duration::from_secs(5))?;
-
-        Ok((child, stream))
-    }
-
-    #[allow(dead_code)]
-    fn restart(&mut self) -> Result<(), EimError> {
-        // Kill the current process
-        if let Some(mut child) = self.child.take() {
-            child
-                .kill()
-                .map_err(|e| EimError::ExecutionError(format!("Failed to kill process: {}", e)))?;
-            child.wait().map_err(|e| {
-                EimError::ExecutionError(format!("Failed to wait for process: {}", e))
-            })?;
-        }
-
-        // Start a new process
-        let (child, stream) = Self::start_process(&self.path, self.debug)?;
-
-        self.child = Some(child);
-        self.socket = stream;
-
-        // Send hello message to initialize
-        self.send_hello()?;
-
-        Ok(())
+    pub fn get_slice_size(&self) -> usize {
+        self.model_info
+            .as_ref()
+            .map(|info| info.model_parameters.input_features_count as usize)
+            .unwrap_or(0)
     }
 }

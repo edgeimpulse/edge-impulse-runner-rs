@@ -10,7 +10,7 @@ use serde::Deserialize;
 ///
 /// These parameters are received from the model during initialization and describe
 /// the model's input requirements, processing settings, and output characteristics.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct ModelParameters {
     /// Number of axes for motion/positional data (e.g., 3 for xyz accelerometer)
     pub axis_count: u32,
@@ -43,7 +43,7 @@ pub struct ModelParameters {
     /// Type of input sensor (see SensorType enum)
     pub sensor: u32,
     /// Size of the processing window for time-series data
-    pub slice_size: u32,
+    pub slice_size: usize,
     /// Confidence threshold for detections (0.0 to 1.0)
     pub threshold: f32,
     /// Whether the model supports continuous mode operation

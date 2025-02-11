@@ -9,7 +9,6 @@
 //! - Classification requests (`ClassifyMessage`)
 //! - Model information responses (`ModelInfo`)
 //! - Inference results (`InferenceResponse`)
-//! - Configuration messages (`ConfigMessage`)
 //! - Error responses (`ErrorResponse`)
 
 use crate::types::ModelParameters;
@@ -112,39 +111,6 @@ pub struct ErrorResponse {
     #[allow(dead_code)]
     #[serde(default)]
     pub id: Option<u32>,
-}
-
-/// Message for configuring model runtime options.
-///
-/// Used to modify model behavior during runtime.
-#[derive(Serialize, Debug)]
-pub(crate) struct ConfigMessage {
-    /// Configuration options to apply
-    pub config: ConfigOptions,
-    /// Unique message identifier
-    pub id: u32,
-}
-
-/// Options for model configuration.
-///
-/// Contains various settings that can be applied to modify
-/// model behavior.
-#[derive(Serialize, Debug)]
-pub(crate) struct ConfigOptions {
-    /// Enable/disable continuous mode for streaming inference
-    pub continuous_mode: Option<bool>,
-}
-
-/// Response to a configuration request.
-///
-/// Indicates whether the configuration was successfully applied.
-#[derive(Deserialize, Debug)]
-pub(crate) struct ConfigResponse {
-    /// Indicates if the configuration was successful
-    pub success: bool,
-    /// Message identifier matching the request
-    #[allow(dead_code)]
-    pub id: u32,
 }
 
 /// Represents a bounding box for object detection results.
