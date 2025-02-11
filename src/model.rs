@@ -1,16 +1,15 @@
+use std::collections::{HashMap, VecDeque};
+use std::fmt;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::process::Child;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
-use std::fmt;
-use std::collections::{VecDeque, HashMap};
 
 use crate::error::EimError;
 use crate::messages::{
-    ClassifyMessage, ErrorResponse, HelloMessage,
-    InferenceResponse, ModelInfo, InferenceResult,
+    ClassifyMessage, ErrorResponse, HelloMessage, InferenceResponse, InferenceResult, ModelInfo,
 };
 use crate::types::ModelParameters;
 
@@ -101,7 +100,8 @@ impl ContinuousState {
         Self {
             feature_matrix: Vec::new(),
             feature_buffer_full: false,
-            maf_buffers: labels.into_iter()
+            maf_buffers: labels
+                .into_iter()
                 .map(|label| (label, MovingAverageFilter::new(4)))
                 .collect(),
             slice_size,
@@ -117,7 +117,8 @@ impl ContinuousState {
             self.feature_buffer_full = true;
             // Keep only the most recent features if we've exceeded the buffer size
             if self.feature_matrix.len() > self.slice_size {
-                self.feature_matrix.drain(0..self.feature_matrix.len() - self.slice_size);
+                self.feature_matrix
+                    .drain(0..self.feature_matrix.len() - self.slice_size);
             }
         }
     }
@@ -350,11 +351,10 @@ impl EimModel {
         let msg = serde_json::to_string(&hello_msg)?;
         self.debug_message(&format!("Sending hello message: {}", msg));
 
-        writeln!(self.socket, "{}", msg)
-            .map_err(|e| {
-                self.debug_message(&format!("Failed to send hello: {}", e));
-                EimError::SocketError(format!("Failed to send hello message: {}", e))
-            })?;
+        writeln!(self.socket, "{}", msg).map_err(|e| {
+            self.debug_message(&format!("Failed to send hello: {}", e));
+            EimError::SocketError(format!("Failed to send hello message: {}", e))
+        })?;
 
         self.socket.flush().map_err(|e| {
             self.debug_message(&format!("Failed to flush hello: {}", e));
@@ -398,7 +398,10 @@ impl EimModel {
             }
             Err(e) => {
                 self.debug_message(&format!("Failed to read hello response: {}", e));
-                return Err(EimError::SocketError(format!("Failed to read response: {}", e)));
+                return Err(EimError::SocketError(format!(
+                    "Failed to read response: {}",
+                    e
+                )));
             }
         }
 
@@ -457,7 +460,11 @@ impl EimModel {
     /// # Returns
     ///
     /// Returns `Result<InferenceResponse, EimError>` containing classification results
-    pub fn classify(&mut self, features: Vec<f32>, debug: Option<bool>) -> Result<InferenceResponse, EimError> {
+    pub fn classify(
+        &mut self,
+        features: Vec<f32>,
+        debug: Option<bool>,
+    ) -> Result<InferenceResponse, EimError> {
         // Initialize model info if needed
         if self.model_info.is_none() {
             self.send_hello()?;
@@ -472,10 +479,16 @@ impl EimModel {
         }
     }
 
-    fn classify_continuous_internal(&mut self, features: Vec<f32>, debug: Option<bool>) -> Result<InferenceResponse, EimError> {
+    fn classify_continuous_internal(
+        &mut self,
+        features: Vec<f32>,
+        debug: Option<bool>,
+    ) -> Result<InferenceResponse, EimError> {
         // Initialize continuous state if needed
         if self.continuous_state.is_none() {
-            let labels = self.model_info.as_ref()
+            let labels = self
+                .model_info
+                .as_ref()
                 .map(|info| info.model_parameters.labels.clone())
                 .unwrap_or_default();
             let slice_size = self.input_size()?;
@@ -501,7 +514,10 @@ impl EimModel {
             let mut response = self.classify_single(state.feature_matrix.clone(), debug)?;
 
             // Apply moving average filter to the results
-            if let InferenceResult::Classification { ref mut classification } = response.result {
+            if let InferenceResult::Classification {
+                ref mut classification,
+            } = response.result
+            {
                 state.apply_maf(classification);
             }
 
@@ -514,7 +530,11 @@ impl EimModel {
         response
     }
 
-    fn classify_single(&mut self, features: Vec<f32>, debug: Option<bool>) -> Result<InferenceResponse, EimError> {
+    fn classify_single(
+        &mut self,
+        features: Vec<f32>,
+        debug: Option<bool>,
+    ) -> Result<InferenceResponse, EimError> {
         // First ensure we've sent the hello message and received model info
         if self.model_info.is_none() {
             self.debug_message("No model info, sending hello message...");
@@ -559,7 +579,7 @@ impl EimModel {
                 Ok(0) => {
                     self.debug_message("EOF reached");
                     break;
-                },
+                }
                 Ok(n) => {
                     self.debug_message(&format!("Read {} bytes: {}", n, buffer));
                     if let Ok(response) = serde_json::from_str::<InferenceResponse>(&buffer) {
