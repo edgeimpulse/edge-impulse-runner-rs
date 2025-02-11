@@ -18,24 +18,27 @@ mod tests {
         let manifest_dir =
             env::var("CARGO_MANIFEST_DIR").expect("Failed to get manifest directory");
         let mock_path = Path::new(&manifest_dir).join("mock_eim.sh");
+        let response_path = Path::new(&manifest_dir).join("mock_response.json");
 
-        // Create a shell script that simulates an EIM model
-        // The script uses socat to:
-        // - Create a Unix socket (UNIX-LISTEN)
-        // - Accept connections (fork)
-        // - Respond with a valid JSON message
-        let mock_script = r#"#!/bin/sh
+        // Create the response JSON file
+        let response_json = r#"{"success":true,"id":1,"model_parameters":{"axis_count":3,"frequency":62.5,"has_anomaly":1,"image_channel_count":0,"image_input_frames":0,"image_input_height":0,"image_input_width":0,"image_resize_mode":"none","inferencing_engine":4,"input_features_count":375,"interval_ms":16,"label_count":6,"labels":["drink","fistbump","idle","snake","updown","wave"],"model_type":"classification","sensor":2,"slice_size":31,"threshold":0.6,"use_continuous_mode":false},"project":{"deploy_version":271,"id":1,"name":"Test Project","owner":"Test Owner"}}"#;
+        std::fs::write(&response_path, response_json).unwrap();
+
+        // Create the mock script that reads from the response file
+        let mock_script = format!(
+            r#"#!/bin/sh
 SOCKET_PATH=$1
-socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'echo "{\"success\":true,\"error\":null}\n"'
-"#;
+socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'cat {}'"#,
+            response_path.display()
+        );
 
         let mut file = File::create(&mock_path).unwrap();
         file.write_all(mock_script.as_bytes()).unwrap();
 
-        // Make the script executable (required for Unix systems)
+        // Make the script executable
         use std::os::unix::fs::PermissionsExt;
         let mut perms = std::fs::metadata(&mock_path).unwrap().permissions();
-        perms.set_mode(0o755); // rwxr-xr-x permissions
+        perms.set_mode(0o755);
         std::fs::set_permissions(&mock_path, perms).unwrap();
 
         mock_path
@@ -81,22 +84,36 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'echo "{\"success\":true,\"error\":nu
             return;
         }
 
+        // Create a temporary directory for the socket
+        let temp_dir = tempfile::tempdir().unwrap();
+        let socket_path = temp_dir.path().join("test.socket");
+
         // Create and set up the mock EIM executable
         let mock_path = create_mock_eim();
+        let response_path = mock_path.with_extension("json");
         let mut mock_path_with_eim = mock_path.clone();
         mock_path_with_eim.set_extension("eim");
         std::fs::rename(&mock_path, &mock_path_with_eim).unwrap();
 
-        // Test the connection
-        let result = EimModel::new(&mock_path_with_eim);
+        // Test the connection with the custom socket path
+        let result = EimModel::new_with_socket(&mock_path_with_eim, &socket_path);
         assert!(
             result.is_ok(),
             "Failed to create EIM model: {:?}",
             result.err()
         );
 
-        // Clean up the test file
-        std::fs::remove_file(&mock_path_with_eim).unwrap();
+        // Clean up the test files
+        if mock_path_with_eim.exists() {
+            std::fs::remove_file(&mock_path_with_eim).unwrap_or_else(|e| {
+                println!("Warning: Failed to remove mock EIM file: {}", e);
+            });
+        }
+        if response_path.exists() {
+            std::fs::remove_file(&response_path).unwrap_or_else(|e| {
+                println!("Warning: Failed to remove response file: {}", e);
+            });
+        }
     }
 
     #[test]
