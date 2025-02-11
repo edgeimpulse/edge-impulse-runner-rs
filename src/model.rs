@@ -126,20 +126,6 @@ impl ContinuousState {
             }
         }
     }
-
-    fn shift_features(&mut self, feature_size: usize) {
-        for i in 0..(self.feature_matrix.len() - feature_size) {
-            self.feature_matrix[i] = self.feature_matrix[i + feature_size];
-        }
-    }
-
-    fn apply_maf(&mut self, classification: &mut HashMap<String, f32>) {
-        for (label, value) in classification.iter_mut() {
-            if let Some(maf) = self.maf_buffers.get_mut(label) {
-                *value = maf.update(*value);
-            }
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -440,9 +426,9 @@ impl EimModel {
     pub fn classify(&mut self, features: Vec<f32>, debug: Option<bool>) -> Result<InferenceResponse, EimError> {
         // First ensure we've sent the hello message and received model info
         if self.model_info.is_none() {
-            println!("No model info, sending hello message...");  // Debug print
+            println!("No model info, sending hello message...");
             self.send_hello()?;
-            println!("Hello handshake completed");  // Debug print
+            println!("Hello handshake completed");
         }
 
         let msg = ClassifyMessage {
@@ -452,43 +438,71 @@ impl EimModel {
         };
 
         let msg = serde_json::to_string(&msg)?;
-        println!("Sending classification message: {}", msg);  // Debug print
+        println!("Sending classification message: {}", msg);
 
         writeln!(self.socket, "{}", msg).map_err(|e| {
-            println!("Failed to send classification message: {}", e);  // Debug print
+            println!("Failed to send classification message: {}", e);
             EimError::SocketError(format!("Failed to send classify message: {}", e))
         })?;
 
         self.socket.flush().map_err(|e| {
-            println!("Failed to flush classification message: {}", e);  // Debug print
+            println!("Failed to flush classification message: {}", e);
             EimError::SocketError(format!("Failed to flush socket: {}", e))
         })?;
 
-        println!("Classification message sent, waiting for response...");  // Debug print
+        println!("Classification message sent, waiting for response...");
 
-        // Try reading response in blocking mode
+        // Set socket to non-blocking mode
+        self.socket.set_nonblocking(true).map_err(|e| {
+            println!("Failed to set non-blocking mode: {}", e);
+            EimError::SocketError(format!("Failed to set non-blocking mode: {}", e))
+        })?;
+
         let mut reader = BufReader::new(&self.socket);
         let mut buffer = String::new();
+        let start = Instant::now();
+        let timeout = Duration::from_secs(5);
 
-        match reader.read_line(&mut buffer) {
-            Ok(n) => {
-                println!("Read {} bytes: {}", n, buffer);  // Debug print
-                if let Ok(response) = serde_json::from_str::<InferenceResponse>(&buffer) {
-                    if response.success {
-                        println!("Got successful classification response");  // Debug print
-                        return Ok(response);
+        while start.elapsed() < timeout {
+            match reader.read_line(&mut buffer) {
+                Ok(0) => {
+                    println!("EOF reached");
+                    break;
+                },
+                Ok(n) => {
+                    println!("Read {} bytes: {}", n, buffer);
+                    if let Ok(response) = serde_json::from_str::<InferenceResponse>(&buffer) {
+                        if response.success {
+                            println!("Got successful classification response");
+                            // Reset to blocking mode before returning
+                            self.socket.set_nonblocking(false)?;
+                            return Ok(response);
+                        }
                     }
+                    buffer.clear();
                 }
-                println!("Response parsing failed: {}", buffer);  // Debug print
-            }
-            Err(e) => {
-                println!("Error reading classification response: {}", e);  // Debug print
-                return Err(EimError::SocketError(format!("Read error: {}", e)));
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    // No data available yet, sleep briefly and retry
+                    std::thread::sleep(Duration::from_millis(10));
+                    continue;
+                }
+                Err(e) => {
+                    println!("Read error: {}", e);
+                    // Always try to reset blocking mode, even on error
+                    let _ = self.socket.set_nonblocking(false);
+                    return Err(EimError::SocketError(format!("Read error: {}", e)));
+                }
             }
         }
 
-        println!("No valid classification response received");  // Debug print
-        Err(EimError::ExecutionError("No valid response received".to_string()))
+        // Reset to blocking mode before returning
+        let _ = self.socket.set_nonblocking(false);
+        println!("Timeout reached");
+
+        Err(EimError::ExecutionError(format!(
+            "No valid response received within {} seconds",
+            timeout.as_secs()
+        )))
     }
 
     /// Continuous classification with buffering and smoothing
