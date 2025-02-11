@@ -4,6 +4,7 @@ use std::path::Path;
 use std::process::{Child, Command};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
+use std::fmt;
 
 use crate::error::EimError;
 use crate::messages::{
@@ -43,6 +44,9 @@ impl From<u32> for SensorType {
     }
 }
 
+/// Debug callback type for receiving debug messages
+pub type DebugCallback = Box<dyn Fn(&str) + Send>;
+
 /// Edge Impulse Model runner for Linux-based systems.
 ///
 /// This struct manages the lifecycle of an Edge Impulse model, handling:
@@ -59,7 +63,6 @@ impl From<u32> for SensorType {
 /// - Configuration messages
 /// - Classification requests
 /// - Inference responses
-#[derive(Debug)]
 pub struct EimModel {
     /// Path to the Edge Impulse model file (.eim)
     path: std::path::PathBuf,
@@ -69,6 +72,8 @@ pub struct EimModel {
     socket: UnixStream,
     /// Enable debug logging of socket communications
     debug: bool,
+    /// Optional debug callback for receiving debug messages
+    debug_callback: Option<DebugCallback>,
     /// Handle to the model process (kept alive while model exists)
     _process: Child,
     /// Cached model information received during initialization
@@ -78,6 +83,22 @@ pub struct EimModel {
     /// Optional child process handle for restart functionality
     #[allow(dead_code)]
     child: Option<Child>,
+}
+
+impl fmt::Debug for EimModel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EimModel")
+            .field("path", &self.path)
+            .field("socket_path", &self.socket_path)
+            .field("socket", &self.socket)
+            .field("debug", &self.debug)
+            .field("_process", &self._process)
+            .field("model_info", &self.model_info)
+            .field("message_id", &self.message_id)
+            .field("child", &self.child)
+            // Skip debug_callback field as it doesn't implement Debug
+            .finish()
+    }
 }
 
 impl EimModel {
@@ -164,6 +185,7 @@ impl EimModel {
             model_info: None,
             message_id: AtomicU32::new(1),
             child: None,
+            debug_callback: None,
         };
 
         // Initialize the model by sending hello message
@@ -217,6 +239,24 @@ impl EimModel {
         self.message_id.fetch_add(1, Ordering::Relaxed)
     }
 
+    /// Set a debug callback function to receive debug messages
+    pub fn set_debug_callback<F>(&mut self, callback: F)
+    where
+        F: Fn(&str) + Send + 'static,
+    {
+        self.debug_callback = Some(Box::new(callback));
+    }
+
+    /// Internal helper to send debug messages
+    fn debug_message(&self, message: &str) {
+        if self.debug {
+            println!("{}", message);
+            if let Some(callback) = &self.debug_callback {
+                callback(message);
+            }
+        }
+    }
+
     fn send_hello(&mut self) -> Result<(), EimError> {
         let hello_msg = HelloMessage {
             hello: 1,
@@ -224,9 +264,7 @@ impl EimModel {
         };
 
         let msg = serde_json::to_string(&hello_msg)?;
-        if self.debug {
-            println!("-> {}", msg);
-        }
+        self.debug_message(&format!("-> {}", msg));
 
         writeln!(self.socket, "{}", msg)
             .map_err(|e| EimError::SocketError(format!("Failed to send hello message: {}", e)))?;
@@ -320,7 +358,6 @@ impl EimModel {
         features: Vec<f32>,
         debug: Option<bool>,
     ) -> Result<InferenceResponse, EimError> {
-        // Send the classification request
         let msg = ClassifyMessage {
             classify: features,
             id: self.next_message_id(),
@@ -328,35 +365,62 @@ impl EimModel {
         };
 
         let msg = serde_json::to_string(&msg)?;
-        if self.debug {
-            println!("-> {}", msg);
-        }
+        self.debug_message(&format!("-> {}", msg));
 
         writeln!(self.socket, "{}", msg).map_err(|e| {
             EimError::SocketError(format!("Failed to send classify message: {}", e))
         })?;
+        self.socket.flush().map_err(|e| {
+            EimError::SocketError(format!("Failed to flush socket: {}", e))
+        })?;
 
-        // Read responses until we get a classification result
+        // Set socket to non-blocking mode
+        self.socket.set_nonblocking(true).map_err(|e| {
+            EimError::SocketError(format!("Failed to set non-blocking mode: {}", e))
+        })?;
+
         let mut reader = BufReader::new(&self.socket);
         let mut buffer = String::new();
+        let start = Instant::now();
+        let timeout = Duration::from_secs(5); // Increased timeout for slower systems
 
-        while reader.read_line(&mut buffer)? > 0 {
-            if self.debug {
-                println!("<- {}", buffer);
-            }
+        while start.elapsed() < timeout {
+            match reader.read_line(&mut buffer) {
+                Ok(0) => break, // EOF
+                Ok(_) => {
+                    self.debug_message(&format!("<- {}", buffer.trim()));
 
-            if let Ok(response) = serde_json::from_str::<InferenceResponse>(&buffer) {
-                if response.success {
-                    return Ok(response);
+                    if let Ok(response) = serde_json::from_str::<InferenceResponse>(&buffer) {
+                        if response.success {
+                            // Reset to blocking mode before returning
+                            self.socket.set_nonblocking(false).map_err(|e| {
+                                EimError::SocketError(format!("Failed to reset blocking mode: {}", e))
+                            })?;
+                            return Ok(response);
+                        }
+                    }
+                    buffer.clear();
+                }
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    // No data available yet, sleep briefly and retry
+                    std::thread::sleep(Duration::from_millis(1));
+                    continue;
+                }
+                Err(e) => {
+                    // Always try to reset blocking mode, even on error
+                    let _ = self.socket.set_nonblocking(false);
+                    return Err(EimError::SocketError(format!("Read error: {}", e)));
                 }
             }
-
-            buffer.clear();
         }
 
-        Err(EimError::ExecutionError(
-            "No valid response received".to_string(),
-        ))
+        // Reset to blocking mode before returning
+        let _ = self.socket.set_nonblocking(false);
+
+        Err(EimError::ExecutionError(format!(
+            "No valid response received within {} seconds",
+            timeout.as_secs()
+        )))
     }
 
     /// Classify continuous data (for models that support it)
@@ -364,7 +428,24 @@ impl EimModel {
         &mut self,
         features: Vec<f32>,
     ) -> Result<InferenceResponse, EimError> {
-        self.classify(features, None)
+        // First ensure continuous mode is enabled
+        self.set_continuous_mode(true)?;
+
+        // Then perform classification with continuous mode specific handling
+        let result = self.classify(features, None)?;
+
+        // If classification failed, disable continuous mode before returning error
+        if !result.success {
+            let _ = self.set_continuous_mode(false); // Best effort cleanup
+            return Err(EimError::ExecutionError("Continuous classification failed".to_string()));
+        }
+
+        Ok(result)
+    }
+
+    /// Clean up continuous mode when done with continuous classification
+    pub fn stop_continuous(&mut self) -> Result<(), EimError> {
+        self.set_continuous_mode(false)
     }
 
     /// Set whether to use continuous mode for classification
