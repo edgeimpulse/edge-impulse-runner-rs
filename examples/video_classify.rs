@@ -161,8 +161,8 @@ fn create_pipeline(
         .property(
             "caps",
             gst::Caps::builder("video/x-raw")
-                .field("width", 640i32)    // Set preview width
-                .field("height", 480i32)   // Set preview height
+                .field("width", 640i32) // Set preview width
+                .field("height", 480i32) // Set preview height
                 .build(),
         )
         .build()?;
@@ -195,7 +195,12 @@ fn create_pipeline(
 
     // Link elements
     gst::Element::link_many(&[&src, &convert, &scale, &tee])?;
-    gst::Element::link_many(&[&queue_preview, &scale_preview, &preview_caps, &autovideosink])?;
+    gst::Element::link_many(&[
+        &queue_preview,
+        &scale_preview,
+        &preview_caps,
+        &autovideosink,
+    ])?;
     gst::Element::link_many(&[&queue_analysis, &appsink])?;
 
     // Link tee to queues
