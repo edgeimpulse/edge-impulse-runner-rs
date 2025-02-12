@@ -17,16 +17,14 @@
 //! export DYLD_LIBRARY_PATH="/Library/Frameworks/GStreamer.framework/Versions/1.0/lib:$DYLD_LIBRARY_PATH"
 //! export DYLD_FRAMEWORK_PATH="/Library/Frameworks/GStreamer.framework/Versions/1.0/lib:$DYLD_FRAMEWORK_PATH"
 //!
-//! You may also need to install the opencv library:
-//! brew install opencv
-//!
 //! Note: This only works on MacOS and requires a webcam connected to the system.
 
 use clap::Parser;
 use edge_impulse_runner::{EimModel, InferenceResult};
+use gst::prelude::*;
 use gstreamer as gst;
-use gstreamer::prelude::*;
 use gstreamer_app as gst_app;
+use gstreamer_video as gst_video;
 use gstreamer_video::{self, VideoCapsBuilder, VideoInfo};
 use std::error::Error;
 use std::sync::{Arc, Mutex};
@@ -207,39 +205,61 @@ fn create_pipeline(
     Ok(pipeline)
 }
 
-fn process_sample(
-    buffer: &gst::buffer::BufferRef,
-    info: &gstreamer_video::VideoInfo,
-    params: &edge_impulse_runner::ModelParameters,
+fn process_image(
+    image_data: Vec<u8>,
+    width: u32,
+    height: u32,
+    _channels: u32,
+    debug: bool,
 ) -> Vec<f32> {
-    let map = buffer.map_readable().unwrap();
-    let data = map.as_slice();
+    let mut features = Vec::with_capacity((width * height) as usize);
 
-    let width = info.width() as usize;
-    let height = info.height() as usize;
-    let stride = info.stride()[0] as usize;
-    let channels = params.image_channel_count as usize;
-    let expected_features = params.input_features_count as usize;
-
-    // Convert to features based on model requirements
-    let mut features = Vec::with_capacity(expected_features);
-    for y in 0..height {
-        for x in 0..width {
-            for c in 0..channels {
-                let offset = y * stride + x * channels + c;
-                let value = data[offset] as f32 / 255.0;
-                features.push(value);
-            }
+    // Process RGB channels (3 bytes at a time)
+    for chunk in image_data.chunks(3) {
+        if chunk.len() == 3 {
+            let r = chunk[0];
+            let g = chunk[1];
+            let b = chunk[2];
+            let feature = ((r as u32) << 16) + ((g as u32) << 8) + (b as u32);
+            features.push(feature as f32);
         }
     }
 
-    // Verify size and truncate if necessary
-    if features.len() != expected_features {
-        features.truncate(expected_features);
+    if debug {
+        println!(
+            "Sending classification message with first 20 features: {:?}",
+            &features[..20.min(features.len())]
+        );
     }
 
-    assert_eq!(features.len(), expected_features, "Feature count mismatch");
-    features
+    // Convert to normalized features
+    features.into_iter().map(|x| x as f32 / 255.0).collect()
+}
+
+fn process_sample(
+    buffer: &gst::BufferRef,
+    _info: &gst_video::VideoInfo,
+    model_params: &edge_impulse_runner::ModelParameters,
+    debug: bool,
+) -> Vec<f32> {
+    let width = model_params.image_input_width;
+    let height = model_params.image_input_height;
+
+    // Map the buffer for reading
+    let map = buffer.map_readable().unwrap();
+    let data = map.as_slice();
+
+    // Convert frame data to Vec<u8>
+    let image_data: Vec<u8> = data.to_vec();
+
+    // Process the image data using our image processing function
+    process_image(
+        image_data,
+        width,
+        height,
+        model_params.image_channel_count,
+        debug,
+    )
 }
 
 fn example_main() -> Result<(), Box<dyn Error>> {
@@ -253,10 +273,17 @@ fn example_main() -> Result<(), Box<dyn Error>> {
     let model_instance = EimModel::new_with_debug(&params.model, params.debug)?;
 
     // Extract just the values we need for the pipeline
-    let input_width = model_instance.parameters()?.image_input_width;
-    let input_height = model_instance.parameters()?.image_input_height;
-    let channel_count = model_instance.parameters()?.image_channel_count;
-    let features_count = model_instance.parameters()?.input_features_count;
+    let model_params = model_instance.parameters()?;
+    let input_width = model_params.image_input_width;
+    let input_height = model_params.image_input_height;
+    let channel_count = model_params.image_channel_count;
+    let features_count = model_params.input_features_count;
+
+    // Print detailed model parameters
+    println!("\nModel Parameters:");
+    println!("----------------");
+    println!("{:#?}", model_params);
+    println!("----------------\n");
 
     // Now wrap the model in Arc<Mutex>
     let model = Arc::new(Mutex::new(model_instance));
@@ -315,6 +342,7 @@ fn example_main() -> Result<(), Box<dyn Error>> {
                         input_features_count: features_count,
                         ..Default::default()
                     },
+                    debug,
                 );
 
                 // Run inference
