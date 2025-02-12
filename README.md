@@ -8,12 +8,9 @@ A Rust library for running Edge Impulse Linux models (EIM). This crate provides 
 - Support for different model types:
   - Classification models
   - Object detection models
-  - Anomaly detection
 - Support for different sensor types:
   - Camera
   - Microphone
-  - Accelerometer
-  - Positional
 - Continuous classification mode support
 - Debug output option
 
@@ -40,11 +37,30 @@ When a new model is created, the following sequence occurs:
     "success": true,
     "id": 1,
     "model_parameters": {
-        "sensor": 1,
-        "input_features_count": 1024,
-        "frequency": 16000,
-        "labels": ["class1", "class2"],
-        "threshold": 0.5
+        "axis_count": 1,
+        "frequency": 16000.0,
+        "has_anomaly": 0,
+        "image_channel_count": 3,
+        "image_input_frames": 1,
+        "image_input_height": 96,
+        "image_input_width": 96,
+        "image_resize_mode": "fit-shortest",
+        "inferencing_engine": 4,
+        "input_features_count": 9216,
+        "interval_ms": 1.0,
+        "label_count": 1,
+        "labels": ["class1"],
+        "model_type": "classification",
+        "sensor": 3,
+        "slice_size": 2304,
+        "threshold": 0.5,
+        "use_continuous_mode": false
+    },
+    "project": {
+        "deploy_version": 1,
+        "id": 12345,
+        "name": "Project Name",
+        "owner": "Owner Name"
     }
 }
 ```
@@ -56,11 +72,13 @@ For each inference request:
 ```json
 {
     "classify": [0.1, 0.2, 0.3],
-    "id": 2
+    "id": 2,
+    "debug": true  // Optional field
 }
 ```
 
 ##### InferenceResponse (Model -> Runner):
+For classification models:
 ```json
 {
     "success": true,
@@ -74,15 +92,39 @@ For each inference request:
 }
 ```
 
-#### 3. Error Handling
+For object detection models:
+```json
+{
+    "success": true,
+    "id": 2,
+    "result": {
+        "bounding_boxes": [
+            {
+                "label": "object1",
+                "value": 0.95,
+                "x": 100,
+                "y": 150,
+                "width": 50,
+                "height": 50
+            }
+        ],
+        "classification": {
+            "class1": 0.8,
+            "class2": 0.2
+        }
+    }
+}
+```
+
+#### 3. Error Response
 When errors occur:
 
 ##### ErrorResponse (Model -> Runner):
 ```json
 {
     "success": false,
-    "error": "Invalid input features count",
-    "id": 2
+    "error": "Error message",
+    "id": 2  // Optional field
 }
 ```
 
@@ -110,11 +152,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         SensorType::Microphone => println!("Audio model"),
         SensorType::Accelerometer => println!("Motion model"),
         SensorType::Positional => println!("Position model"),
-        SensorType::Unknown => println!("Unknown sensor type"),
+        SensorType::Other => println!("Other sensor type"),
     }
 
-    // Run inference with some features
-    let features = vec![0.1, 0.2, 0.3];
+    // Run inference with normalized features
+    let raw_features = vec![128, 128, 128];  // Example raw values
+    let features: Vec<f32> = raw_features.into_iter().map(|x| x as f32 / 255.0).collect();
     let result = model.classify(features, None)?;
 
     // Handle the results based on model type
@@ -124,10 +167,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("{}: {:.2}", label, probability);
             }
         }
-        InferenceResult::ObjectDetection { bounding_boxes, .. } => {
+        InferenceResult::ObjectDetection { bounding_boxes, classification } => {
             for bbox in bounding_boxes {
                 println!("Found {} at ({}, {}) with confidence {:.2}",
                     bbox.label, bbox.x, bbox.y, bbox.value);
+            }
+            if !classification.is_empty() {
+                println!("\nOverall classification:");
+                for (label, prob) in classification {
+                    println!("{}: {:.2}", label, prob);
+                }
             }
         }
     }
@@ -136,32 +185,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-For continuous classification:
-
-```rust
-use edge_impulse_runner::EimModel;
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut model = EimModel::new("path/to/model.eim")?;
-
-    // Ensure model supports continuous mode
-    let params = model.parameters()?;
-    if !params.use_continuous_mode {
-        println!("Model doesn't support continuous mode");
-        return Ok(());
-    }
-
-    // Run continuous classification
-    let features = vec![0.1, 0.2, 0.3];
-    let result = model.classify_continuous(features)?;
-
-    // Handle results...
-    Ok(())
-}
-```
-
-
 ## Examples
+
+All examples are located in the `examples` directory and accept a `--debug` flag to enable debug output.
 
 ### Basic Classification
 The simplest example allows you to run inference by providing the features array via command line:
@@ -169,28 +195,7 @@ The simplest example allows you to run inference by providing the features array
 ```bash
 # Format: comma-separated feature values
 cargo run --example basic_classify -- --model path/to/model.eim --features "0.1,0.2,0.3"
-
-# With debug output enabled
-cargo run --example basic_classify -- --model path/to/model.eim --features "0.1,0.2,0.3" --debug
 ```
-
-```bash
-Usage: basic_classify [OPTIONS] --model <MODEL> --features <FEATURES>
-
-Options:
-  -m, --model <MODEL>        Path to the .eim model file
-  -f, --features <FEATURES>  Features array as comma-separated values (e.g., "0.1,0.2,0.3")
-  -d, --debug                Enable debug output
-  -h, --help                 Print help
-  -V, --version              Print version
-  ```
-
-This example demonstrates:
-- Loading a model from a file
-- Parsing features from command line arguments
-- Running inference
-- Handling different types of results (classification and object detection)
-- Optional debug output
 
 The features array format depends on your model:
 - For audio models: Raw audio samples
@@ -200,12 +205,7 @@ The features array format depends on your model:
 
 ### Audio Classification
 
-The repository includes an example that demonstrates audio classification using Edge Impulse models. The example supports:
-
-- Various WAV file formats (8/16/24/32-bit, integer/float)
-- Both mono and stereo inputs (stereo is automatically converted to mono)
-- Sample rate validation
-- Automatic padding/truncating to match model requirements
+The repository includes an example that demonstrates audio classification using Edge Impulse models.
 
 To run the audio classification example:
 
@@ -219,6 +219,80 @@ Reading audio file: input.wav
 Model expects 16000 samples at 16000Hz
 Using slice size of 16000 samples
 Classification result: ...
+```
+
+### Image Classification
+The repository includes an example that demonstrates image classification using Edge Impulse models:
+
+To run the image classification example:
+```bash
+cargo run --example image_classify -- --model path/to/model.eim --image path/to/image.jpg
+```
+
+Example output:
+```
+loads/mug.5jn4d0t5.jpg
+Edge Impulse Linux impulse runner - listening for JSON messages on socket '/var/folders/w6/6k70rdhd74ndc6cjr12lbghh0000gn/T/eim_socket'
+Waiting for connection on /var/folders/w6/6k70rdhd74ndc6cjr12lbghh0000gn/T/eim_socket...
+Connected
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+Detected objects:
+----------------
+- mug (90.62%): x=24, y=40, width=8, height=16
+```
+
+### Video Classification
+The repository includes an example that demonstrates video classification using Edge Impulse models:
+
+To run the video classification example:
+```bash
+cargo run --example video_classify -- --model path/to/model.eim
+```
+
+Example output:
+```
+Edge Impulse Linux impulse runner - listening for JSON messages on socket '/var/folders/w6/6k70rdhd74ndc6cjr12lbghh0000gn/T/eim_socket'
+Waiting for connection on /var/folders/w6/6k70rdhd74ndc6cjr12lbghh0000gn/T/eim_socket...
+Connected
+
+Model Parameters:
+----------------
+ModelParameters {
+    axis_count: 1,
+    frequency: 0.0,
+    has_anomaly: 0,
+    image_channel_count: 3,
+    image_input_frames: 1,
+    image_input_height: 96,
+    image_input_width: 96,
+    image_resize_mode: "fit-shortest",
+    inferencing_engine: 4,
+    input_features_count: 9216,
+    interval_ms: 1.0,
+    label_count: 1,
+    labels: [
+        "mug",
+    ],
+    model_type: "constrained_object_detection",
+    sensor: 3,
+    slice_size: 2304,
+    threshold: 0.5,
+    use_continuous_mode: false,
+}
+----------------
+
+Model expects 96x96 input with 3 channels (9216 features)
+Image format will be 96x96 with 3 channels
+Setting up pipeline for 96x96 input with 3 channels
+2025-02-12 07:17:48.758 video_classify[65602:37375812] WARNING: AVCaptureDeviceTypeExternal is deprecated for Continuity Cameras. Please use AVCaptureDeviceTypeContinuityCamera and add NSCameraUseContinuityCameraDeviceType to your Info.plist.
+Playing... (Ctrl+C to stop)
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+No objects detected
+Detected objects: [BoundingBox { label: "mug", value: 0.53125, x: 56, y: 48, width: 8, height: 8 }]
+Detected objects: [BoundingBox { label: "mug", value: 0.53125, x: 56, y: 40, width: 8, height: 8 }]
+Detected objects: [BoundingBox { label: "mug", value: 0.53125, x: 48, y: 40, width: 8, height: 8 }]
+Detected objects: [BoundingBox { label: "mug", value: 0.53125, x: 56, y: 40, width: 8, height: 8 }]
+Detected objects: [BoundingBox { label: "mug", value: 0.5625, x: 48, y: 40, width: 8, height: 8 }]
 ```
 
 ## Development
