@@ -42,6 +42,10 @@ struct VideoClassifyParams {
     /// Enable debug output
     #[clap(short, long)]
     debug: bool,
+
+    /// Confidence threshold (0.0 to 1.0) for showing results
+    #[clap(short, long, default_value = "0.8")]
+    threshold: f32,
 }
 
 // macOS specific run loop handling
@@ -376,14 +380,27 @@ fn example_main() -> Result<(), Box<dyn Error>> {
                             // Access classification through the InferenceResult enum
                             match result.result {
                                 InferenceResult::Classification { classification } => {
-                                    println!("Classification: {:?}", classification);
+                                    // Filter classifications by threshold
+                                    let filtered: Vec<_> = classification
+                                        .into_iter()
+                                        .filter(|(_, confidence)| *confidence >= params.threshold)
+                                        .collect();
+                                    if !filtered.is_empty() {
+                                        println!("Classification (confidence ≥ {}): {:?}", params.threshold, filtered);
+                                    }
                                 }
                                 InferenceResult::ObjectDetection {
                                     bounding_boxes,
                                     classification,
                                 } => {
-                                    if !bounding_boxes.is_empty() {
-                                        println!("Detected objects: {:?}", bounding_boxes);
+                                    // Filter bounding boxes by threshold
+                                    let filtered_boxes: Vec<_> = bounding_boxes
+                                        .into_iter()
+                                        .filter(|b| b.value >= params.threshold)
+                                        .collect();
+
+                                    if !filtered_boxes.is_empty() {
+                                        println!("Detected objects (confidence ≥ {}): {:?}", params.threshold, filtered_boxes);
                                         if let Ok(mut last) = last_no_detection_clone.lock() {
                                             *last = Instant::now();
                                         }
@@ -391,13 +408,19 @@ fn example_main() -> Result<(), Box<dyn Error>> {
                                         // Check if 5 seconds have passed since last notification
                                         if let Ok(mut last) = last_no_detection_clone.lock() {
                                             if last.elapsed() >= Duration::from_secs(5) {
-                                                println!("No objects detected");
+                                                println!("No objects detected above threshold {}", params.threshold);
                                                 *last = Instant::now();
                                             }
                                         }
                                     }
-                                    if !classification.is_empty() {
-                                        println!("Classification: {:?}", classification);
+
+                                    // Filter classifications by threshold
+                                    let filtered_class: Vec<_> = classification
+                                        .into_iter()
+                                        .filter(|(_, confidence)| *confidence >= params.threshold)
+                                        .collect();
+                                    if !filtered_class.is_empty() {
+                                        println!("Classification (confidence ≥ {}): {:?}", params.threshold, filtered_class);
                                     }
                                 }
                             }
