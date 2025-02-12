@@ -1,3 +1,5 @@
+#![cfg(target_os = "macos")]
+
 //! Video Classification Example
 //!
 //! This example demonstrates how to use the Edge Impulse Runner to perform video classification
@@ -144,12 +146,27 @@ fn create_pipeline(
     let scale = gst::ElementFactory::make("videoscale").build()?;
     let tee = gst::ElementFactory::make("tee").build()?;
 
-    // Preview branch with optimized queue settings
+    // Preview branch with optimized queue settings and video scaling
     let queue_preview = gst::ElementFactory::make("queue").build()?;
     queue_preview.set_property_from_str("leaky", "downstream");
     queue_preview.set_property("max-size-buffers", 2u32);
     queue_preview.set_property("max-size-bytes", 0u32);
     queue_preview.set_property("max-size-time", gst::ClockTime::from_seconds(0));
+
+    // Add videoscale element for preview
+    let scale_preview = gst::ElementFactory::make("videoscale").build()?;
+
+    // Add capsfilter to set the preview size
+    let preview_caps = gst::ElementFactory::make("capsfilter")
+        .property(
+            "caps",
+            gst::Caps::builder("video/x-raw")
+                .field("width", 640i32)    // Set preview width
+                .field("height", 480i32)   // Set preview height
+                .build(),
+        )
+        .build()?;
+
     let autovideosink = gst::ElementFactory::make("autovideosink").build()?;
 
     // Analysis branch with optimized queue settings
@@ -169,6 +186,8 @@ fn create_pipeline(
         &scale,
         &tee,
         &queue_preview,
+        &scale_preview,
+        &preview_caps,
         &autovideosink,
         &queue_analysis,
         &appsink,
@@ -176,7 +195,7 @@ fn create_pipeline(
 
     // Link elements
     gst::Element::link_many(&[&src, &convert, &scale, &tee])?;
-    gst::Element::link_many(&[&queue_preview, &autovideosink])?;
+    gst::Element::link_many(&[&queue_preview, &scale_preview, &preview_caps, &autovideosink])?;
     gst::Element::link_many(&[&queue_analysis, &appsink])?;
 
     // Link tee to queues

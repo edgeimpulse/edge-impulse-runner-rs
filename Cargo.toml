@@ -12,13 +12,17 @@ serde_json = "1.0"
 thiserror = "1.0"
 tokio = { version = "1.0", features = ["full"] }
 
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+cocoa = "0.26.0"
+core-graphics-types = "0.2.0"
+core-foundation = "0.9"
+objc = "0.2.7"
+
 [dev-dependencies]
 clap = { version = "4.4", features = ["derive"] }
-cocoa = "0.26.0"
 gstreamer = "0.23.4"
 gstreamer-app = "0.23.4"
 gstreamer-video = "0.23.4"
 hound = "3.5"
 image = "0.25.5"
-objc = "0.2.7"
 tempfile = "3.10.0"

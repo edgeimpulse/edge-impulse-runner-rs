@@ -189,6 +189,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 All examples are located in the `examples` directory and accept a `--debug` flag to enable debug output.
 
+These examples have only been tested on MacOS.
+
 ### Basic Classification
 The simplest example allows you to run inference by providing the features array via command line:
 
@@ -215,10 +217,12 @@ cargo run --example audio_classify -- --model <path_to_model.eim> --audio <path_
 
 Example output:
 ```
-Reading audio file: input.wav
-Model expects 16000 samples at 16000Hz
-Using slice size of 16000 samples
-Classification result: ...
+Audio file specs: WavSpec { channels: 1, sample_rate: 16000, bits_per_sample: 16, sample_format: Int }
+Read 16000 samples from audio file
+Model expects 16000 samples
+Using 16000 samples for classification
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+Classification result: InferenceResponse { success: true, id: 2, result: Classification { classification: {"noise": 0.96875, "no": 0.015625, "yes": 0.01953125} } }
 ```
 
 ### Image Classification
@@ -231,11 +235,6 @@ cargo run --example image_classify -- --model path/to/model.eim --image path/to/
 
 Example output:
 ```
-loads/mug.5jn4d0t5.jpg
-Edge Impulse Linux impulse runner - listening for JSON messages on socket '/var/folders/w6/6k70rdhd74ndc6cjr12lbghh0000gn/T/eim_socket'
-Waiting for connection on /var/folders/w6/6k70rdhd74ndc6cjr12lbghh0000gn/T/eim_socket...
-Connected
-INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
 Detected objects:
 ----------------
 - mug (90.62%): x=24, y=40, width=8, height=16
@@ -251,10 +250,6 @@ cargo run --example video_classify -- --model path/to/model.eim
 
 Example output:
 ```
-Edge Impulse Linux impulse runner - listening for JSON messages on socket '/var/folders/w6/6k70rdhd74ndc6cjr12lbghh0000gn/T/eim_socket'
-Waiting for connection on /var/folders/w6/6k70rdhd74ndc6cjr12lbghh0000gn/T/eim_socket...
-Connected
-
 Model Parameters:
 ----------------
 ModelParameters {
