@@ -41,7 +41,7 @@ jobs:
       - name: Run tests
         run: cargo test --verbose
 
-      - name: Run examples
+      - name: Build examples
         run: |
           cargo build --examples --verbose
 

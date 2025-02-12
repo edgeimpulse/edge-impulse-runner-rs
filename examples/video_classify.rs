@@ -1,6 +1,6 @@
 #![cfg(target_os = "macos")]
 
-//! Video Classification Example
+//! Video Classification Example (macOS only)
 //!
 //! This example demonstrates how to use the Edge Impulse Runner to perform video classification
 //! using a trained model. It captures frames from a webcam using GStreamer and runs inference.
@@ -442,6 +442,13 @@ fn example_main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
 fn main() {
     run(|| example_main().unwrap());
+}
+
+// Add this to prevent compilation errors on non-macOS platforms
+#[cfg(not(target_os = "macos"))]
+fn main() {
+    println!("This example only works on macOS");
 }
