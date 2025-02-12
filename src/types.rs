@@ -90,17 +90,17 @@ pub struct TimingInfo {
 #[derive(Deserialize, Debug)]
 pub struct BoundingBox {
     /// Height of the bounding box in pixels
-    pub height: u32,
+    pub height: i32,
     /// Classification label for the detected object
     pub label: String,
     /// Confidence score for the detection (0.0 to 1.0)
     pub value: f32,
     /// Width of the bounding box in pixels
-    pub width: u32,
+    pub width: i32,
     /// X-coordinate of the top-left corner
-    pub x: u32,
+    pub x: i32,
     /// Y-coordinate of the top-left corner
-    pub y: u32,
+    pub y: i32,
 }
 
 /// Represents the type of sensor used for data collection.

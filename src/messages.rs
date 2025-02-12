@@ -11,7 +11,6 @@
 //! - Inference results (`InferenceResponse`)
 //! - Error responses (`ErrorResponse`)
 
-use crate::types::ModelParameters;
 use crate::types::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -147,24 +146,4 @@ pub struct ErrorResponse {
     #[allow(dead_code)]
     #[serde(default)]
     pub id: Option<u32>,
-}
-
-/// Represents a bounding box for object detection results.
-///
-/// Contains the position, size, and classification information
-/// for a detected object.
-#[derive(Deserialize, Debug)]
-pub struct BoundingBox {
-    /// Class label for the detected object
-    pub label: String,
-    /// Confidence score for the detection (0.0 to 1.0)
-    pub value: f32,
-    /// X-coordinate of the top-left corner
-    pub x: i32,
-    /// Y-coordinate of the top-left corner
-    pub y: i32,
-    /// Width of the bounding box
-    pub width: i32,
-    /// Height of the bounding box
-    pub height: i32,
 }
