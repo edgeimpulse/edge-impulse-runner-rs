@@ -73,7 +73,7 @@ For each inference request:
 {
     "classify": [0.1, 0.2, 0.3],
     "id": 2,
-    "debug": true  // Optional field
+    "debug": true
 }
 ```
 
@@ -124,7 +124,7 @@ When errors occur:
 {
     "success": false,
     "error": "Error message",
-    "id": 2  // Optional field
+    "id": 2
 }
 ```
 

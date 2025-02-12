@@ -15,6 +15,7 @@ use crate::types::ModelParameters;
 use crate::types::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt;
 
 /// Initial handshake message sent to the model process.
 ///
@@ -95,6 +96,41 @@ pub struct InferenceResponse {
     pub id: u32,
     /// The actual inference results
     pub result: InferenceResult,
+}
+
+impl fmt::Display for InferenceResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.result {
+            InferenceResult::Classification { classification } => {
+                write!(f, "Classification results: ")?;
+                for (class, probability) in classification {
+                    write!(f, "{}={:.2}% ", class, probability * 100.0)?;
+                }
+                Ok(())
+            }
+            InferenceResult::ObjectDetection { bounding_boxes, classification } => {
+                if !classification.is_empty() {
+                    write!(f, "Image classification: ")?;
+                    for (class, probability) in classification {
+                        write!(f, "{}={:.2}% ", class, probability * 100.0)?;
+                    }
+                    write!(f, "\n")?;
+                }
+                write!(f, "Detected objects: ")?;
+                for bbox in bounding_boxes {
+                    write!(f, "{}({:.2}%) at ({},{},{},{}) ",
+                        bbox.label,
+                        bbox.value * 100.0,
+                        bbox.x,
+                        bbox.y,
+                        bbox.width,
+                        bbox.height
+                    )?;
+                }
+                Ok(())
+            }
+        }
+    }
 }
 
 /// Response indicating an error condition.

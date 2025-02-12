@@ -47,22 +47,54 @@ impl From<u32> for SensorType {
 /// Debug callback type for receiving debug messages
 pub type DebugCallback = Box<dyn Fn(&str) + Send + Sync>;
 
-/// Edge Impulse Model runner for Linux-based systems.
+/// Edge Impulse Model Runner for Rust
 ///
-/// This struct manages the lifecycle of an Edge Impulse model, handling:
-/// - Model process spawning and management
-/// - Unix socket communication
-/// - Model configuration
-/// - Inference requests and responses
+/// This module provides functionality for running Edge Impulse machine learning models on Linux systems.
+/// It handles model lifecycle management, communication, and inference operations.
+///
+/// # Key Components
+///
+/// - `EimModel`: Main struct for managing Edge Impulse models
+/// - `SensorType`: Enum representing supported sensor input types
+/// - `ContinuousState`: Internal state management for continuous inference mode
+/// - `MovingAverageFilter`: Smoothing filter for continuous inference results
+///
+/// # Features
+///
+/// - Model process management and Unix socket communication
+/// - Support for both single-shot and continuous inference modes
+/// - Debug logging and callback system
+/// - Moving average filtering for continuous mode results
+/// - Automatic retry mechanisms for socket connections
+///
+/// # Example Usage
+///
+/// ```no_run
+/// use edge_impulse_runner::EimModel;
+///
+/// // Create a new model instance
+/// let mut model = EimModel::new("path/to/model.eim").unwrap();
+///
+/// // Run inference with some features
+/// let features = vec![0.1, 0.2, 0.3];
+/// let result = model.classify(features, None).unwrap();
+/// ```
 ///
 /// # Communication Protocol
 ///
-/// The model runner communicates with the Edge Impulse model process through a Unix
-/// socket. The protocol uses JSON messages for all communications, including:
-/// - Hello messages for initialization
-/// - Configuration messages
-/// - Classification requests
-/// - Inference responses
+/// The model communicates with the Edge Impulse process using JSON messages over Unix sockets:
+/// 1. Hello message for initialization
+/// 2. Model info response
+/// 3. Classification requests
+/// 4. Inference responses
+///
+/// # Error Handling
+///
+/// The module uses a custom `EimError` type for error handling, covering:
+/// - Invalid file paths
+/// - Socket communication errors
+/// - Model execution errors
+/// - JSON serialization/deserialization errors
 pub struct EimModel {
     /// Path to the Edge Impulse model file (.eim)
     path: std::path::PathBuf,

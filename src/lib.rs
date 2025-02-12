@@ -7,7 +7,7 @@
 //! ## Features
 //!
 //! - Load and run Edge Impulse models (.eim files)
-//! - Support for multiple sensor types (audio, accelerometer, camera, etc.)
+//! - Support for multiple sensor types (audio, camera, etc.)
 //! - Handle both classification and object detection models
 //! - Manage model lifecycle and IPC communication
 //! - Continuous and one-shot inference modes
@@ -15,30 +15,52 @@
 //! ## Example
 //!
 //! ```no_run
-//! use edge_impulse_runner::{EimModel, InferenceResult};
+//! use edge_impulse_runner::EimModel;
 //!
-//! // Create a new model instance
-//! let mut model = EimModel::new("path/to/model.eim").unwrap();
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     // Create a new model instance
+//!     let mut model = EimModel::new("path/to/model.eim")?;
 //!
-//! // Prepare your input features
-//! let features = vec![0.1, 0.2, 0.3];
+//!     // Get model information
+//!     let params = model.parameters()?;
+//!     println!("Model type: {}", params.model_type);
 //!
-//! // Run inference
-//! let result = model.classify(features, None).unwrap();
+//!     // Check sensor type
+//!     match model.sensor_type()? {
+//!         SensorType::Camera => println!("Camera model"),
+//!         SensorType::Microphone => println!("Audio model"),
+//!         SensorType::Accelerometer => println!("Motion model"),
+//!         SensorType::Positional => println!("Position model"),
+//!         SensorType::Other => println!("Other sensor type"),
+//!     }
 //!
-//! // Handle the results
-//! match result.result {
-//!     InferenceResult::Classification { classification } => {
-//!         for (class, probability) in classification {
-//!             println!("{}: {:.2}%", class, probability * 100.0);
+//!     // Run inference with normalized features
+//!     let raw_features = vec![128, 128, 128];  // Example raw values
+//!     let features: Vec<f32> = raw_features.into_iter().map(|x| x as f32 / 255.0).collect();
+//!     let result = model.classify(features, None)?;
+//!
+//!     // Handle the results based on model type
+//!     match result.result {
+//!         InferenceResult::Classification { classification } => {
+//!             for (label, probability) in classification {
+//!                 println!("{}: {:.2}", label, probability);
+//!             }
 //!         }
-//!     },
-//!     InferenceResult::ObjectDetection { bounding_boxes, .. } => {
-//!         for bbox in bounding_boxes {
-//!             println!("Found {} at ({}, {}) with confidence {:.2}%",
-//!                 bbox.label, bbox.x, bbox.y, bbox.value * 100.0);
+//!         InferenceResult::ObjectDetection { bounding_boxes, classification } => {
+//!             for bbox in bounding_boxes {
+//!                 println!("Found {} at ({}, {}) with confidence {:.2}",
+//!                     bbox.label, bbox.x, bbox.y, bbox.value);
+//!             }
+//!             if !classification.is_empty() {
+//!                 println!("\nOverall classification:");
+//!                 for (label, prob) in classification {
+//!                     println!("{}: {:.2}", label, prob);
+//!                 }
+//!             }
 //!         }
 //!     }
+//!
+//!     Ok(())
 //! }
 //! ```
 //!
