@@ -125,3 +125,16 @@ pub enum SensorType {
     /// Positional sensor for location/orientation data (4)
     Positional = 4,
 }
+
+impl From<i32> for SensorType {
+    fn from(value: i32) -> Self {
+        match value {
+            -1 => SensorType::Unknown,
+            1 => SensorType::Microphone,
+            2 => SensorType::Accelerometer,
+            3 => SensorType::Camera,
+            4 => SensorType::Positional,
+            _ => SensorType::Unknown,
+        }
+    }
+}
