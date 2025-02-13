@@ -107,17 +107,22 @@ impl fmt::Display for InferenceResponse {
                 }
                 Ok(())
             }
-            InferenceResult::ObjectDetection { bounding_boxes, classification } => {
+            InferenceResult::ObjectDetection {
+                bounding_boxes,
+                classification,
+            } => {
                 if !classification.is_empty() {
                     write!(f, "Image classification: ")?;
                     for (class, probability) in classification {
                         write!(f, "{}={:.2}% ", class, probability * 100.0)?;
                     }
-                    write!(f, "\n")?;
+                    writeln!(f)?;
                 }
                 write!(f, "Detected objects: ")?;
                 for bbox in bounding_boxes {
-                    write!(f, "{}({:.2}%) at ({},{},{},{}) ",
+                    write!(
+                        f,
+                        "{}({:.2}%) at ({},{},{},{}) ",
                         bbox.label,
                         bbox.value * 100.0,
                         bbox.x,

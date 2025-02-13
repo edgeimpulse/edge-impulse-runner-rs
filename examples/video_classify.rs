@@ -386,7 +386,10 @@ fn example_main() -> Result<(), Box<dyn Error>> {
                                         .filter(|(_, confidence)| *confidence >= params.threshold)
                                         .collect();
                                     if !filtered.is_empty() {
-                                        println!("Classification (confidence ≥ {}): {:?}", params.threshold, filtered);
+                                        println!(
+                                            "Classification (confidence ≥ {}): {:?}",
+                                            params.threshold, filtered
+                                        );
                                     }
                                 }
                                 InferenceResult::ObjectDetection {
@@ -400,7 +403,10 @@ fn example_main() -> Result<(), Box<dyn Error>> {
                                         .collect();
 
                                     if !filtered_boxes.is_empty() {
-                                        println!("Detected objects (confidence ≥ {}): {:?}", params.threshold, filtered_boxes);
+                                        println!(
+                                            "Detected objects (confidence ≥ {}): {:?}",
+                                            params.threshold, filtered_boxes
+                                        );
                                         if let Ok(mut last) = last_no_detection_clone.lock() {
                                             *last = Instant::now();
                                         }
@@ -408,7 +414,10 @@ fn example_main() -> Result<(), Box<dyn Error>> {
                                         // Check if 5 seconds have passed since last notification
                                         if let Ok(mut last) = last_no_detection_clone.lock() {
                                             if last.elapsed() >= Duration::from_secs(5) {
-                                                println!("No objects detected above threshold {}", params.threshold);
+                                                println!(
+                                                    "No objects detected above threshold {}",
+                                                    params.threshold
+                                                );
                                                 *last = Instant::now();
                                             }
                                         }
@@ -420,7 +429,10 @@ fn example_main() -> Result<(), Box<dyn Error>> {
                                         .filter(|(_, confidence)| *confidence >= params.threshold)
                                         .collect();
                                     if !filtered_class.is_empty() {
-                                        println!("Classification (confidence ≥ {}): {:?}", params.threshold, filtered_class);
+                                        println!(
+                                            "Classification (confidence ≥ {}): {:?}",
+                                            params.threshold, filtered_class
+                                        );
                                     }
                                 }
                             }

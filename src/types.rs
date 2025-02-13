@@ -44,8 +44,8 @@ pub struct ModelParameters {
     pub sensor: u32,
     /// Size of the processing window for time-series data
     pub slice_size: usize,
-    /// Confidence threshold for detections (0.0 to 1.0)
-    pub threshold: f32,
+    /// Optional confidence threshold for detections (0.0 to 1.0)
+    pub threshold: Option<f32>,
     /// Whether the model supports continuous mode operation
     pub use_continuous_mode: bool,
 }
@@ -106,17 +106,22 @@ pub struct BoundingBox {
 /// Represents the type of sensor used for data collection.
 ///
 /// This enum defines the supported sensor types for Edge Impulse models,
-/// allowing the system to properly handle different types of input data.
+/// mapping to the numeric values used in the protocol:
+/// - -1 or unknown: Unknown
+/// - 1: Microphone
+/// - 2: Accelerometer
+/// - 3: Camera
+/// - 4: Positional
 #[derive(Debug, Clone, Copy)]
 pub enum SensorType {
-    /// Camera sensor for image/video input
-    Camera,
-    /// Microphone sensor for audio input
-    Microphone,
-    /// Accelerometer sensor for motion data
-    Accelerometer,
-    /// Positional sensor for location/orientation data
-    Positional,
-    /// Other sensor types not covered by specific variants
-    Other,
+    /// Unknown or unsupported sensor type (-1 or default)
+    Unknown = -1,
+    /// Microphone sensor for audio input (1)
+    Microphone = 1,
+    /// Accelerometer sensor for motion data (2)
+    Accelerometer = 2,
+    /// Camera sensor for image/video input (3)
+    Camera = 3,
+    /// Positional sensor for location/orientation data (4)
+    Positional = 4,
 }

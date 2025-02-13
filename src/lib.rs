@@ -15,47 +15,40 @@
 //! ## Example
 //!
 //! ```no_run
-//! use edge_impulse_runner::EimModel;
+//! use edge_impulse_runner::{EimModel, SensorType, InferenceResult};
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // Create a new model instance
 //!     let mut model = EimModel::new("path/to/model.eim")?;
 //!
-//!     // Get model information
-//!     let params = model.parameters()?;
-//!     println!("Model type: {}", params.model_type);
-//!
-//!     // Check sensor type
+//!     // Check the sensor type
 //!     match model.sensor_type()? {
 //!         SensorType::Camera => println!("Camera model"),
 //!         SensorType::Microphone => println!("Audio model"),
 //!         SensorType::Accelerometer => println!("Motion model"),
 //!         SensorType::Positional => println!("Position model"),
-//!         SensorType::Other => println!("Other sensor type"),
+//!         SensorType::Unknown => println!("Unknown sensor type"),
 //!     }
 //!
-//!     // Run inference with normalized features
-//!     let raw_features = vec![128, 128, 128];  // Example raw values
-//!     let features: Vec<f32> = raw_features.into_iter().map(|x| x as f32 / 255.0).collect();
+//!     // Prepare your input data as a vector of f32 values
+//!     let features: Vec<f32> = vec![/* your input data */];
+//!
+//!     // Run inference
 //!     let result = model.classify(features, None)?;
 //!
-//!     // Handle the results based on model type
+//!     // Process the results
 //!     match result.result {
 //!         InferenceResult::Classification { classification } => {
 //!             for (label, probability) in classification {
-//!                 println!("{}: {:.2}", label, probability);
+//!                 println!("{}: {:.2}%", label, probability * 100.0);
 //!             }
 //!         }
 //!         InferenceResult::ObjectDetection { bounding_boxes, classification } => {
+//!             println!("Detected objects:");
 //!             for bbox in bounding_boxes {
-//!                 println!("Found {} at ({}, {}) with confidence {:.2}",
-//!                     bbox.label, bbox.x, bbox.y, bbox.value);
-//!             }
-//!             if !classification.is_empty() {
-//!                 println!("\nOverall classification:");
-//!                 for (label, prob) in classification {
-//!                     println!("{}: {:.2}", label, prob);
-//!                 }
+//!                 println!("{} ({:.2}%) at ({}, {}, {}, {})",
+//!                     bbox.label, bbox.value * 100.0,
+//!                     bbox.x, bbox.y, bbox.width, bbox.height);
 //!             }
 //!         }
 //!     }
@@ -96,7 +89,10 @@ pub use error::EimError;
 pub use messages::{InferenceResponse, InferenceResult};
 pub use model::EimModel;
 pub use model::SensorType;
+pub use types::BoundingBox;
 pub use types::ModelParameters;
+pub use types::ProjectInfo;
+pub use types::TimingInfo;
 
 #[cfg(test)]
 mod tests;
