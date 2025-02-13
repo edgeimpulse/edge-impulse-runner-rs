@@ -5,6 +5,7 @@
 //! the model and interpret its outputs.
 
 use serde::Deserialize;
+use serde::Serialize;
 
 /// Parameters that define a model's configuration and capabilities.
 ///
@@ -87,7 +88,7 @@ pub struct TimingInfo {
 ///
 /// Used in object detection models to specify where objects were found
 /// in an image and their classification details.
-#[derive(Deserialize, Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct BoundingBox {
     /// Height of the bounding box in pixels
     pub height: i32,

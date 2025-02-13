@@ -65,7 +65,7 @@ pub struct ModelInfo {
 /// Models can produce different types of outputs depending on their type:
 /// - Classification models return class probabilities
 /// - Object detection models return bounding boxes and optional classifications
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(untagged)]
 pub enum InferenceResult {
     /// Result from a classification model
