@@ -39,6 +39,7 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: target/doc
+          jekyll: false
 
   deploy:
     environment:
