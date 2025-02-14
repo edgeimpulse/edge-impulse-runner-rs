@@ -326,6 +326,57 @@ fn main() {
 }
 ```
 
+## Development Setup
+
+### Prerequisites
+
+#### 1. Install Rust
+Install Rust using rustup (recommended method):
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+Follow the on-screen instructions and restart your terminal. Verify the installation with:
+```bash
+rustc --version
+cargo --version
+```
+
+#### 2. Install GStreamer
+GStreamer is required for video capture and processing capabilities.
+
+##### macOS
+Download and install both packages:
+- [Runtime installer](https://gstreamer.freedesktop.org/data/pkg/osx/1.24.12/gstreamer-1.0-1.24.12-universal.pkg)
+- [Development installer](https://gstreamer.freedesktop.org/data/pkg/osx/1.24.12/gstreamer-1.0-devel-1.24.12-universal.pkg)
+
+##### Ubuntu/Debian
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+    libgstreamer1.0-dev \
+    libgstreamer-plugins-base1.0-dev \
+    libgstreamer-plugins-bad1.0-dev \
+    gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad \
+    gstreamer1.0-plugins-ugly \
+    gstreamer1.0-libav \
+    gstreamer1.0-tools
+```
+
+##### Other Linux Distributions
+For other Linux distributions, please refer to the [official GStreamer installation instructions](https://gstreamer.freedesktop.org/documentation/installing/index.html).
+
+> **Note**: Windows support is currently untested.
+
+### Verifying GStreamer Installation
+You can verify your GStreamer installation by running:
+```bash
+gst-launch-1.0 --version
+```
+
+If you see version information, GStreamer is correctly installed.
+
 ## Acknowledgments
 This crate is designed to work with Edge Impulse's machine learning models. For more information about Edge Impulse and their ML deployment solutions, visit [Edge Impulse](https://edgeimpulse.com/).
 
