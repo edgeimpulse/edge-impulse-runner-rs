@@ -261,6 +261,28 @@ impl EimModel {
         Self::new_with_socket_and_debug(path, &socket_path, debug)
     }
 
+    /// Ensure the model file has execution permissions for the current user
+    fn ensure_executable<P: AsRef<Path>>(path: P) -> Result<(), EimError> {
+        use std::os::unix::fs::PermissionsExt;
+
+        let path = path.as_ref();
+        let metadata = std::fs::metadata(path).map_err(|e| {
+            EimError::ExecutionError(format!("Failed to get file metadata: {}", e))
+        })?;
+
+        let perms = metadata.permissions();
+        let current_mode = perms.mode();
+        if current_mode & 0o100 == 0 {
+            // File is not executable for user, try to make it executable
+            let mut new_perms = perms;
+            new_perms.set_mode(current_mode | 0o100); // Add executable bit for user only
+            std::fs::set_permissions(path, new_perms).map_err(|e| {
+                EimError::ExecutionError(format!("Failed to set executable permissions: {}", e))
+            })?;
+        }
+        Ok(())
+    }
+
     /// Create a new EimModel instance with debug output enabled and a specific socket path
     pub fn new_with_socket_and_debug<P: AsRef<Path>, S: AsRef<Path>>(
         path: P,
@@ -274,6 +296,9 @@ impl EimModel {
         if path.extension().and_then(|s| s.to_str()) != Some("eim") {
             return Err(EimError::InvalidPath);
         }
+
+        // Ensure the model file is executable
+        Self::ensure_executable(path)?;
 
         // Start the process
         let process = std::process::Command::new(path)
