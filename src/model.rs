@@ -266,9 +266,8 @@ impl EimModel {
         use std::os::unix::fs::PermissionsExt;
 
         let path = path.as_ref();
-        let metadata = std::fs::metadata(path).map_err(|e| {
-            EimError::ExecutionError(format!("Failed to get file metadata: {}", e))
-        })?;
+        let metadata = std::fs::metadata(path)
+            .map_err(|e| EimError::ExecutionError(format!("Failed to get file metadata: {}", e)))?;
 
         let perms = metadata.permissions();
         let current_mode = perms.mode();
