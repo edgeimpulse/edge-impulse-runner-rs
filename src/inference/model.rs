@@ -8,41 +8,10 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
 use crate::error::EimError;
-use crate::messages::{
+use crate::inference::messages::{
     ClassifyMessage, ErrorResponse, HelloMessage, InferenceResponse, InferenceResult, ModelInfo,
 };
-use crate::types::ModelParameters;
-
-/// Supported sensor types for Edge Impulse models.
-///
-/// These represent the different types of input data that an Edge Impulse model
-/// can process. Each sensor type corresponds to a specific data collection method
-/// and processing pipeline.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum SensorType {
-    /// Represents an unknown or unsupported sensor type
-    Unknown,
-    /// Audio input from microphone sensors
-    Microphone,
-    /// Motion data from accelerometer sensors
-    Accelerometer,
-    /// Visual input from camera sensors
-    Camera,
-    /// Location or orientation data from positional sensors
-    Positional,
-}
-
-impl From<u32> for SensorType {
-    fn from(value: u32) -> Self {
-        match value {
-            1 => SensorType::Microphone,
-            2 => SensorType::Accelerometer,
-            3 => SensorType::Camera,
-            4 => SensorType::Positional,
-            _ => SensorType::Unknown,
-        }
-    }
-}
+use crate::types::{ModelParameters, SensorType};
 
 /// Debug callback type for receiving debug messages
 pub type DebugCallback = Box<dyn Fn(&str) + Send + Sync>;

@@ -42,7 +42,7 @@ pub struct ModelParameters {
     /// Type of model ("classification", "object-detection", etc.)
     pub model_type: String,
     /// Type of input sensor (see SensorType enum)
-    pub sensor: u32,
+    pub sensor: i32,
     /// Size of the processing window for time-series data
     pub slice_size: usize,
     /// Optional confidence threshold for detections (0.0 to 1.0)
@@ -113,7 +113,7 @@ pub struct BoundingBox {
 /// - 2: Accelerometer
 /// - 3: Camera
 /// - 4: Positional
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SensorType {
     /// Unknown or unsupported sensor type (-1 or default)
     Unknown = -1,

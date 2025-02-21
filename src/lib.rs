@@ -76,22 +76,24 @@
 //! ## Modules
 //!
 //! - `error`: Error types and handling
-//! - `messages`: Communication protocol message definitions
-//! - `model`: Core model management functionality
+//! - `inference`: Core model management and inference functionality
+//!   - `messages`: Communication protocol message definitions
+//!   - `model`: Model implementation and runtime management
+//! - `ingestion`: Data ingestion and preprocessing (coming soon)
 //! - `types`: Common types and parameters
 
 mod error;
-mod messages;
-pub mod model;
+pub mod inference;
 pub mod types;
 
+pub use inference::messages::{InferenceResponse, InferenceResult};
+pub use inference::EimModel;
+
 pub use error::EimError;
-pub use messages::{InferenceResponse, InferenceResult};
-pub use model::EimModel;
-pub use model::SensorType;
 pub use types::BoundingBox;
 pub use types::ModelParameters;
 pub use types::ProjectInfo;
+pub use types::SensorType;
 pub use types::TimingInfo;
 
 #[cfg(test)]
