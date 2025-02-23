@@ -78,3 +78,30 @@ pub enum EimError {
     #[error("Invalid operation: {0}")]
     InvalidOperation(String),
 }
+
+#[derive(Debug)]
+pub enum IngestionError {
+    Config(String),
+    Server { status_code: u16, message: String },
+    Network(reqwest::Error),
+    Json(serde_json::Error),
+    Header(reqwest::header::InvalidHeaderValue),
+}
+
+impl From<reqwest::Error> for IngestionError {
+    fn from(err: reqwest::Error) -> Self {
+        IngestionError::Network(err)
+    }
+}
+
+impl From<serde_json::Error> for IngestionError {
+    fn from(err: serde_json::Error) -> Self {
+        IngestionError::Json(err)
+    }
+}
+
+impl From<reqwest::header::InvalidHeaderValue> for IngestionError {
+    fn from(err: reqwest::header::InvalidHeaderValue) -> Self {
+        IngestionError::Header(err)
+    }
+}

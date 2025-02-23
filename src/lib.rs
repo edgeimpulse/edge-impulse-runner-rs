@@ -84,6 +84,7 @@
 
 mod error;
 pub mod inference;
+pub mod ingestion;
 pub mod types;
 
 pub use inference::messages::{InferenceResponse, InferenceResult};
