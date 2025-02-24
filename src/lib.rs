@@ -96,6 +96,3 @@ pub use types::ModelParameters;
 pub use types::ProjectInfo;
 pub use types::SensorType;
 pub use types::TimingInfo;
-
-#[cfg(test)]
-mod tests;

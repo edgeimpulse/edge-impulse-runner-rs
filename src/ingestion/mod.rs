@@ -313,6 +313,7 @@ mod tests {
     use super::*;
     use mockito::Server;
     use tracing_test::traced_test;
+    use tracing::error;
 
     fn create_test_sensors() -> Vec<Sensor> {
         vec![Sensor {
