@@ -8,6 +8,66 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::debug;
 const DEFAULT_INGESTION_HOST: &str = "https://ingestion.edgeimpulse.com";
 
+/// Edge Impulse Ingestion API client
+///
+/// This module provides a client implementation for the Edge Impulse Ingestion API, which allows
+/// uploading data samples and files to Edge Impulse for machine learning training, testing, and
+/// anomaly detection.
+///
+/// # API Endpoints
+///
+/// The client supports two types of endpoints:
+///
+/// * Data endpoints (legacy):
+///   - `/api/training/data`
+///   - `/api/testing/data`
+///   - `/api/anomaly/data`
+///
+/// * File endpoints:
+///   - `/api/training/files`
+///   - `/api/testing/files`
+///   - `/api/anomaly/files`
+///
+/// # Examples
+///
+/// ```no_run
+/// use edge_impulse::ingestion::{Ingestion, Category, Sensor};
+///
+/// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
+/// // Create a new client
+/// let client = Ingestion::new("your-api-key".to_string())
+///     .with_hmac("optional-hmac-key".to_string());
+///
+/// // Upload a file
+/// let response = client.upload_file(
+///     "data.wav",
+///     Category::Training,
+///     Some("walking".to_string()),
+///     None
+/// ).await?;
+///
+/// // Upload sensor data
+/// let sensors = vec![
+///     Sensor {
+///         name: "accX".to_string(),
+///         units: "m/s2".to_string(),
+///     }
+/// ];
+/// let values = vec![vec![1.0, 2.0, 3.0]];
+///
+/// let response = client.upload_sample(
+///     "device-id",
+///     "CUSTOM_DEVICE",
+///     sensors,
+///     values,
+///     100.0,
+///     Some("walking".to_string()),
+///     "training"
+/// ).await?;
+/// # Ok(())
+/// # }
+/// ```
+
 #[derive(Debug, Serialize, Deserialize)]
 struct Protected {
     ver: String,
@@ -24,6 +84,9 @@ struct Payload {
     values: Vec<Vec<f64>>,
 }
 
+/// Represents a sensor in the Edge Impulse data format
+///
+/// Each sensor has a name and units that describe the type of data being collected.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Sensor {
     pub name: String,
@@ -37,13 +100,12 @@ struct DataMessage {
     payload: Payload,
 }
 
-pub struct Ingestion {
-    api_key: String,
-    hmac_key: Option<String>,
-    host: String,
-    debug: bool,
-}
-
+/// Data category for Edge Impulse uploads
+///
+/// Determines which API endpoint will be used for the upload:
+/// - Training: Used for gathering training data
+/// - Testing: Used for gathering testing data
+/// - Anomaly: Used for anomaly detection data
 #[derive(Debug, Clone, Copy)]
 pub enum Category {
     Training,
@@ -59,6 +121,18 @@ impl Category {
             Category::Anomaly => "anomaly",
         }
     }
+}
+
+/// Edge Impulse Ingestion API client
+///
+/// This struct provides methods to interact with the Edge Impulse Ingestion API.
+/// It supports uploading both raw sensor data and files to Edge Impulse for
+/// machine learning training, testing, and anomaly detection.
+pub struct Ingestion {
+    api_key: String,
+    hmac_key: Option<String>,
+    host: String,
+    debug: bool,
 }
 
 impl Ingestion {
@@ -300,6 +374,9 @@ impl Ingestion {
     }
 }
 
+/// Options for file uploads to Edge Impulse
+///
+/// These options correspond to various headers that can be set when uploading files.
 #[derive(Debug, Default)]
 pub struct UploadOptions {
     /// When set, the server checks the hash of the message against your current dataset

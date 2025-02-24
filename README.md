@@ -327,7 +327,8 @@ Detected objects: [BoundingBox { label: "mug", value: 0.5625, x: 48, y: 40, widt
 
 ```bash
 cargo run --example upload_image -- \
-  -a "ei_..." |
+  -a "ei_..." \
+  -c "training" \
   -f ~/Downloads/mug.5jn81s9p.jpg \
   --debug
 ```
