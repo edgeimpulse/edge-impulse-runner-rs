@@ -9,6 +9,7 @@ license = "BSD-3-Clause"
 [dependencies]
 hex = "0.4.3"
 hmac = "0.12.1"
+mime_guess = "2.0.5"
 reqwest = { version = "0.12.12", features = ["multipart"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -25,6 +26,7 @@ objc = "0.2.7"
 
 [dev-dependencies]
 clap = { version = "4.4", features = ["derive"] }
+env_logger = "0.11.6"
 gstreamer = "0.23.4"
 gstreamer-app = "0.23.4"
 gstreamer-video = "0.23.4"

@@ -9,6 +9,9 @@
 //! conditions that can occur within the library.
 
 use thiserror::Error;
+use std::io;
+use std::fmt;
+use std::error::Error;
 
 /// Represents all possible errors that can occur in the Edge Impulse Runner.
 ///
@@ -81,11 +84,42 @@ pub enum EimError {
 
 #[derive(Debug)]
 pub enum IngestionError {
+    Server {
+        status_code: u16,
+        message: String,
+    },
     Config(String),
-    Server { status_code: u16, message: String },
     Network(reqwest::Error),
     Json(serde_json::Error),
     Header(reqwest::header::InvalidHeaderValue),
+    Io(io::Error),
+}
+
+impl fmt::Display for IngestionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            IngestionError::Server { status_code, message } => {
+                write!(f, "Server error {}: {}", status_code, message)
+            }
+            IngestionError::Config(msg) => write!(f, "Configuration error: {}", msg),
+            IngestionError::Network(e) => write!(f, "Network error: {}", e),
+            IngestionError::Json(e) => write!(f, "JSON error: {}", e),
+            IngestionError::Header(e) => write!(f, "Header error: {}", e),
+            IngestionError::Io(e) => write!(f, "IO error: {}", e),
+        }
+    }
+}
+
+impl Error for IngestionError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            IngestionError::Network(e) => Some(e),
+            IngestionError::Json(e) => Some(e),
+            IngestionError::Header(e) => Some(e),
+            IngestionError::Io(e) => Some(e),
+            _ => None,
+        }
+    }
 }
 
 impl From<reqwest::Error> for IngestionError {
@@ -103,5 +137,11 @@ impl From<serde_json::Error> for IngestionError {
 impl From<reqwest::header::InvalidHeaderValue> for IngestionError {
     fn from(err: reqwest::header::InvalidHeaderValue) -> Self {
         IngestionError::Header(err)
+    }
+}
+
+impl From<io::Error> for IngestionError {
+    fn from(err: io::Error) -> Self {
+        IngestionError::Io(err)
     }
 }

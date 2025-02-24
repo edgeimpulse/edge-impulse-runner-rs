@@ -82,7 +82,7 @@
 //! - `ingestion`: Data ingestion and preprocessing (coming soon)
 //! - `types`: Common types and parameters
 
-mod error;
+pub mod error;
 pub mod inference;
 pub mod ingestion;
 pub mod types;

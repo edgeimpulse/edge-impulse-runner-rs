@@ -1,10 +1,11 @@
 use crate::error::IngestionError;
 use hmac::{Hmac, Mac};
-use reqwest::multipart::{Form, Part};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tracing::{debug, error};
+use tracing::debug;
+use mime_guess::from_path;
+use std::path::Path;
 const DEFAULT_INGESTION_HOST: &str = "https://ingestion.edgeimpulse.com";
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -40,6 +41,24 @@ pub struct Ingestion {
     api_key: String,
     hmac_key: Option<String>,
     host: String,
+    debug: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Category {
+    Training,
+    Testing,
+    Anomaly,
+}
+
+impl Category {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Category::Training => "training",
+            Category::Testing => "testing",
+            Category::Anomaly => "anomaly",
+        }
+    }
 }
 
 impl Ingestion {
@@ -48,6 +67,7 @@ impl Ingestion {
             api_key,
             hmac_key: None,
             host: DEFAULT_INGESTION_HOST.to_string(),
+            debug: false,
         }
     }
 
@@ -56,11 +76,17 @@ impl Ingestion {
             api_key,
             hmac_key: None,
             host,
+            debug: false,
         }
     }
 
     pub fn with_hmac(mut self, hmac_key: String) -> Self {
         self.hmac_key = Some(hmac_key);
+        self
+    }
+
+    pub fn with_debug(mut self) -> Self {
+        self.debug = true;
         self
     }
 
@@ -76,18 +102,26 @@ impl Ingestion {
         }
     }
 
-    pub async fn upload_sample(
-        &self,
+    pub async fn upload_sample(&self,
         device_id: &str,
         device_type: &str,
         sensors: Vec<Sensor>,
         values: Vec<Vec<f64>>,
         interval_ms: f64,
         label: Option<String>,
-        category: &str,
+        _category: &str,
     ) -> Result<String, IngestionError> {
+        if self.debug {
+            println!("=== Request Details ===");
+            println!("URL: {}/api/training/data", self.host);
+            println!("Device ID: {}", device_id);
+            println!("Device Type: {}", device_type);
+            println!("Sensors: {:?}", sensors);
+            println!("Data size: {} sensors, {} samples", sensors.len(), values.len());
+        }
+
         debug!("Creating data message");
-        let data = DataMessage {
+        let message = DataMessage {
             protected: Protected {
                 ver: "v1".to_string(),
                 alg: "HS256".to_string(),
@@ -101,23 +135,24 @@ impl Ingestion {
                 device_name: device_id.to_string(),
                 device_type: device_type.to_string(),
                 interval_ms,
-                sensors,
-                values,
+                sensors: sensors.clone(),
+                values: values.clone(),
             },
         };
 
         debug!("Serializing data message");
-        let json_data = serde_json::to_string(&data)?;
-        debug!("Creating signature for data");
-        let signature = self.create_signature(json_data.as_bytes()).await?;
-        debug!("Generated signature: {}", signature);
+        let json = serde_json::to_string(&message)?;
 
-        let signed_data = DataMessage { signature, ..data };
+        if let Some(ref _hmac_key) = self.hmac_key {
+            debug!("Creating signature for data");
+            let signature = self.create_signature(json.as_bytes()).await?;
+            debug!("Generated signature: {}", signature);
+        }
 
         debug!("Creating multipart form");
-        let form = Form::new().part("message", Part::text(serde_json::to_string(&signed_data)?));
+        let form = reqwest::multipart::Form::new()
+            .text("data", json);
 
-        let client = reqwest::Client::new();
         let mut headers = reqwest::header::HeaderMap::new();
         debug!("Setting up headers");
         headers.insert("x-api-key", self.api_key.parse()?);
@@ -128,32 +163,144 @@ impl Ingestion {
             headers.insert("x-label", urlencoding::encode(&label).parse()?);
         }
 
-        let url = format!("{}/api/{}/data", self.host, category);
-        debug!("Sending request to: {}", url);
+        if self.debug {
+            println!("=== Request Headers ===");
+            println!("{:#?}", &headers);
+        }
+
+        let client = reqwest::Client::new();
         let response = client
-            .post(url)
-            .headers(headers)
+            .post(format!("{}/api/training/data", self.host))
+            .headers(headers.clone())
             .multipart(form)
             .send()
             .await?;
 
         let status = response.status();
-        debug!("Response status: {}", status);
 
-        let response_text = response.text().await?;
-        debug!("Response body: {}", response_text);
+        if self.debug {
+            println!("=== Response ===");
+            println!("Status: {}", status);
+            println!("Headers: {:#?}", response.headers());
+        }
+
+        let body = response.text().await?;
+
+        if self.debug {
+            println!("Body: {}", body);
+        }
 
         if !status.is_success() {
-            error!("Request failed: {}", response_text);
             return Err(IngestionError::Server {
                 status_code: status.as_u16(),
-                message: response_text,
+                message: body,
             });
         }
 
-        debug!("Request successful");
-        Ok(response_text)
+        Ok(body)
     }
+
+    /// Upload a file to Edge Impulse using the /files endpoint
+    pub async fn upload_file<P: AsRef<Path>>(
+        &self,
+        file_path: P,
+        category: Category,
+        label: Option<String>,
+        options: Option<UploadOptions>,
+    ) -> Result<String, IngestionError> {
+        let path = file_path.as_ref();
+
+        // Verify the file exists
+        if !path.exists() {
+            return Err(IngestionError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("File not found: {:?}", path)
+            )));
+        }
+
+        // Get the mime type of the file
+        let mime_type = from_path(path)
+            .first_or_octet_stream()
+            .to_string();
+
+        if self.debug {
+            println!("Detected mime type: {}", mime_type);
+        }
+
+        // Read the file
+        let file_data = std::fs::read(path)?;
+
+        // Create the multipart form
+        let form = reqwest::multipart::Form::new()
+            .part("data", reqwest::multipart::Part::bytes(file_data)
+                .file_name(path.file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("file")
+                    .to_string())
+                .mime_str(&mime_type)?
+            );
+
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert("x-api-key", self.api_key.parse()?);
+
+        if let Some(label) = label {
+            headers.insert("x-label", urlencoding::encode(&label).parse()?);
+        }
+
+        // Add optional headers from UploadOptions
+        if let Some(opts) = options {
+            if opts.disallow_duplicates {
+                headers.insert("x-disallow-duplicates", "1".parse()?);
+            }
+            if opts.add_date_id {
+                headers.insert("x-add-date-id", "1".parse()?);
+            }
+        }
+
+        if self.debug {
+            println!("=== Request Headers ===");
+            println!("{:#?}", &headers);
+        }
+
+        let client = reqwest::Client::new();
+        let response = client
+            .post(format!("{}/api/{}/files", self.host, category.as_str()))
+            .headers(headers.clone())
+            .multipart(form)
+            .send()
+            .await?;
+
+        let status = response.status();
+
+        if self.debug {
+            println!("=== Response ===");
+            println!("Status: {}", status);
+            println!("Headers: {:#?}", response.headers());
+        }
+
+        let body = response.text().await?;
+
+        if self.debug {
+            println!("Body: {}", body);
+        }
+
+        if !status.is_success() {
+            return Err(IngestionError::Server {
+                status_code: status.as_u16(),
+                message: body,
+            });
+        }
+
+        Ok(body)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct UploadOptions {
+    /// When set, the server checks the hash of the message against your current dataset
+    pub disallow_duplicates: bool,
+    /// Add a date ID to the filename
+    pub add_date_id: bool,
 }
 
 #[cfg(test)]
@@ -346,7 +493,7 @@ mod tests {
                     create_test_values(),
                     100.0,
                     None,
-                    "invalid_category", // Invalid category
+                    "invalid_category",
                 )
                 .await;
 
