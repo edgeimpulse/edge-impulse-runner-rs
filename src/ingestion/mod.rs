@@ -31,7 +31,7 @@ const DEFAULT_INGESTION_HOST: &str = "https://ingestion.edgeimpulse.com";
 /// # Examples
 ///
 /// ```no_run
-/// use edge_impulse::ingestion::{Ingestion, Category, Sensor};
+/// use edge_impulse_runner::ingestion::{Ingestion, Category, Sensor, UploadSampleParams};
 ///
 /// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
 /// // Create a new client
@@ -55,15 +55,17 @@ const DEFAULT_INGESTION_HOST: &str = "https://ingestion.edgeimpulse.com";
 /// ];
 /// let values = vec![vec![1.0, 2.0, 3.0]];
 ///
-/// let response = client.upload_sample(
-///     "device-id",
-///     "CUSTOM_DEVICE",
+/// let params = UploadSampleParams {
+///     device_id: "device-id",
+///     device_type: "CUSTOM_DEVICE",
 ///     sensors,
 ///     values,
-///     100.0,
-///     Some("walking".to_string()),
-///     "training"
-/// ).await?;
+///     interval_ms: 100.0,
+///     label: Some("walking".to_string()),
+///     category: "training",
+/// };
+///
+/// let response = client.upload_sample(params).await?;
 /// # Ok(())
 /// # }
 /// ```
@@ -123,6 +125,25 @@ impl Category {
     }
 }
 
+/// Parameters for uploading a sample
+#[derive(Debug)]
+pub struct UploadSampleParams<'a> {
+    /// Device identifier
+    pub device_id: &'a str,
+    /// Type of device
+    pub device_type: &'a str,
+    /// List of sensors
+    pub sensors: Vec<Sensor>,
+    /// Sample values
+    pub values: Vec<Vec<f64>>,
+    /// Interval in milliseconds
+    pub interval_ms: f64,
+    /// Optional label for the sample
+    pub label: Option<String>,
+    /// Category (training, testing, or anomaly)
+    pub category: &'a str,
+}
+
 /// Edge Impulse Ingestion API client
 ///
 /// This struct provides methods to interact with the Edge Impulse Ingestion API.
@@ -178,28 +199,30 @@ impl Ingestion {
 
     pub async fn upload_sample(
         &self,
-        device_id: &str,
-        device_type: &str,
-        sensors: Vec<Sensor>,
-        values: Vec<Vec<f64>>,
-        interval_ms: f64,
-        label: Option<String>,
-        _category: &str,
+        params: UploadSampleParams<'_>,
     ) -> Result<String, IngestionError> {
         if self.debug {
             println!("=== Request Details ===");
-            println!("URL: {}/api/training/data", self.host);
-            println!("Device ID: {}", device_id);
-            println!("Device Type: {}", device_type);
-            println!("Sensors: {:?}", sensors);
+            println!("URL: {}/api/{}/data", self.host, params.category);
+            println!("Device ID: {}", params.device_id);
+            println!("Device Type: {}", params.device_type);
+            println!("Sensors: {:?}", params.sensors);
             println!(
                 "Data size: {} sensors, {} samples",
-                sensors.len(),
-                values.len()
+                params.sensors.len(),
+                params.values.len()
             );
         }
 
         debug!("Creating data message");
+        let payload = Payload {
+            device_name: params.device_id.to_string(),
+            device_type: params.device_type.to_string(),
+            interval_ms: params.interval_ms,
+            sensors: params.sensors.clone(),
+            values: params.values.iter().map(|v| v.to_vec()).collect(),
+        };
+
         let message = DataMessage {
             protected: Protected {
                 ver: "v1".to_string(),
@@ -210,13 +233,7 @@ impl Ingestion {
                     .as_secs(),
             },
             signature: "0".repeat(64),
-            payload: Payload {
-                device_name: device_id.to_string(),
-                device_type: device_type.to_string(),
-                interval_ms,
-                sensors: sensors.clone(),
-                values: values.clone(),
-            },
+            payload,
         };
 
         debug!("Serializing data message");
@@ -234,9 +251,9 @@ impl Ingestion {
         let mut headers = reqwest::header::HeaderMap::new();
         debug!("Setting up headers");
         headers.insert("x-api-key", self.api_key.parse()?);
-        headers.insert("x-file-name", format!("{}.json", device_id).parse()?);
+        headers.insert("x-file-name", format!("{}.json", params.device_id).parse()?);
 
-        if let Some(label) = label {
+        if let Some(label) = params.label {
             debug!("Adding label header: {}", label);
             headers.insert("x-label", urlencoding::encode(&label).parse()?);
         }
@@ -248,7 +265,7 @@ impl Ingestion {
 
         let client = reqwest::Client::new();
         let response = client
-            .post(format!("{}/api/training/data", self.host))
+            .post(format!("{}/api/{}/data", self.host, params.category))
             .headers(headers.clone())
             .multipart(form)
             .send()
@@ -439,17 +456,17 @@ mod tests {
         rt.block_on(async {
             let ingestion = Ingestion::with_host("test_key".to_string(), server.url());
 
-            let result = ingestion
-                .upload_sample(
-                    "test_device",
-                    "CUSTOM_DEVICE",
-                    create_test_sensors(),
-                    create_test_values(),
-                    100.0,
-                    Some("walking".to_string()),
-                    "training",
-                )
-                .await;
+            let params = UploadSampleParams {
+                device_id: "test_device",
+                device_type: "CUSTOM_DEVICE",
+                sensors: create_test_sensors(),
+                values: create_test_values(),
+                interval_ms: 100.0,
+                label: Some("walking".to_string()),
+                category: "training",
+            };
+
+            let result = ingestion.upload_sample(params).await;
 
             assert!(result.is_ok());
             assert_eq!(result.unwrap(), "OK");
@@ -492,17 +509,17 @@ mod tests {
                 sensors, values
             );
 
-            let result = ingestion
-                .upload_sample(
-                    "test_device",
-                    "CUSTOM_DEVICE",
-                    sensors,
-                    values,
-                    100.0,
-                    None,
-                    "training",
-                )
-                .await;
+            let params = UploadSampleParams {
+                device_id: "test_device",
+                device_type: "CUSTOM_DEVICE",
+                sensors,
+                values: values,
+                interval_ms: 100.0,
+                label: None,
+                category: "training",
+            };
+
+            let result = ingestion.upload_sample(params).await;
 
             match &result {
                 Ok(response) => debug!("Upload successful: {}", response),
@@ -532,17 +549,17 @@ mod tests {
         rt.block_on(async {
             let ingestion = Ingestion::with_host("test_key".to_string(), server.url());
 
-            let result = ingestion
-                .upload_sample(
-                    "test_device",
-                    "CUSTOM_DEVICE",
-                    create_test_sensors(),
-                    create_test_values(),
-                    100.0,
-                    None,
-                    "training",
-                )
-                .await;
+            let params = UploadSampleParams {
+                device_id: "test_device",
+                device_type: "CUSTOM_DEVICE",
+                sensors: create_test_sensors(),
+                values: create_test_values(),
+                interval_ms: 100.0,
+                label: None,
+                category: "training",
+            };
+
+            let result = ingestion.upload_sample(params).await;
 
             assert!(result.is_err());
             match result {
@@ -568,17 +585,17 @@ mod tests {
         rt.block_on(async {
             let ingestion = Ingestion::with_host("test_key".to_string(), server.url());
 
-            let result = ingestion
-                .upload_sample(
-                    "test_device",
-                    "CUSTOM_DEVICE",
-                    create_test_sensors(),
-                    create_test_values(),
-                    100.0,
-                    None,
-                    "invalid_category",
-                )
-                .await;
+            let params = UploadSampleParams {
+                device_id: "test_device",
+                device_type: "CUSTOM_DEVICE",
+                sensors: create_test_sensors(),
+                values: create_test_values(),
+                interval_ms: 100.0,
+                label: None,
+                category: "invalid_category",
+            };
+
+            let result = ingestion.upload_sample(params).await;
 
             assert!(result.is_err());
         });
