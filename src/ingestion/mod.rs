@@ -1,11 +1,11 @@
 use crate::error::IngestionError;
 use hmac::{Hmac, Mac};
+use mime_guess::from_path;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::debug;
-use mime_guess::from_path;
-use std::path::Path;
 const DEFAULT_INGESTION_HOST: &str = "https://ingestion.edgeimpulse.com";
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -102,7 +102,8 @@ impl Ingestion {
         }
     }
 
-    pub async fn upload_sample(&self,
+    pub async fn upload_sample(
+        &self,
         device_id: &str,
         device_type: &str,
         sensors: Vec<Sensor>,
@@ -117,7 +118,11 @@ impl Ingestion {
             println!("Device ID: {}", device_id);
             println!("Device Type: {}", device_type);
             println!("Sensors: {:?}", sensors);
-            println!("Data size: {} sensors, {} samples", sensors.len(), values.len());
+            println!(
+                "Data size: {} sensors, {} samples",
+                sensors.len(),
+                values.len()
+            );
         }
 
         debug!("Creating data message");
@@ -150,8 +155,7 @@ impl Ingestion {
         }
 
         debug!("Creating multipart form");
-        let form = reqwest::multipart::Form::new()
-            .text("data", json);
+        let form = reqwest::multipart::Form::new().text("data", json);
 
         let mut headers = reqwest::header::HeaderMap::new();
         debug!("Setting up headers");
@@ -214,14 +218,12 @@ impl Ingestion {
         if !path.exists() {
             return Err(IngestionError::Io(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
-                format!("File not found: {:?}", path)
+                format!("File not found: {:?}", path),
             )));
         }
 
         // Get the mime type of the file
-        let mime_type = from_path(path)
-            .first_or_octet_stream()
-            .to_string();
+        let mime_type = from_path(path).first_or_octet_stream().to_string();
 
         if self.debug {
             println!("Detected mime type: {}", mime_type);
@@ -231,14 +233,17 @@ impl Ingestion {
         let file_data = std::fs::read(path)?;
 
         // Create the multipart form
-        let form = reqwest::multipart::Form::new()
-            .part("data", reqwest::multipart::Part::bytes(file_data)
-                .file_name(path.file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("file")
-                    .to_string())
-                .mime_str(&mime_type)?
-            );
+        let form = reqwest::multipart::Form::new().part(
+            "data",
+            reqwest::multipart::Part::bytes(file_data)
+                .file_name(
+                    path.file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("file")
+                        .to_string(),
+                )
+                .mime_str(&mime_type)?,
+        );
 
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert("x-api-key", self.api_key.parse()?);

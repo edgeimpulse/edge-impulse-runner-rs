@@ -1,6 +1,6 @@
-use edge_impulse_runner::ingestion::{Ingestion, Category, UploadOptions};
-use std::path::PathBuf;
 use clap::Parser;
+use edge_impulse_runner::ingestion::{Category, Ingestion, UploadOptions};
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -75,12 +75,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Upload the file
     let result = ingestion
-        .upload_file(
-            &args.file,
-            category,
-            args.label,
-            Some(options),
-        )
+        .upload_file(&args.file, category, args.label, Some(options))
         .await?;
 
     println!("Upload successful! Response: {}", result);

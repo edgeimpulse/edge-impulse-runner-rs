@@ -1,10 +1,11 @@
-# Edge Impulse Runner
-[![Edge Impulse Runner Tests](https://github.com/edgeimpulse/edge-impulse-runner-rs/actions/workflows/edge-impulse-runner.yml/badge.svg)](https://github.com/edgeimpulse/edge-impulse-runner-rs/actions/workflows/edge-impulse-runner.yml)
+# Edge Impulse
+[![Edge Impulse Tests](https://github.com/edgeimpulse/edge-impulse-runner-rs/actions/workflows/edge-impulse-runner.yml/badge.svg)](https://github.com/edgeimpulse/edge-impulse-runner-rs/actions/workflows/edge-impulse-runner.yml)
 [![Docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://edgeimpulse.github.io/edge-impulse-runner-rs/)
 
-A Rust library for running Edge Impulse Linux models (EIM). This crate provides a safe and easy-to-use interface for interacting with Edge Impulse machine learning models compiled for Linux and MacOS.
+A Rust library for running inference with Edge Impulse Linux models (EIM) and uploading data to Edge Impulse. This crate provides a safe and easy-to-use interface for interacting with Edge Impulse machine learning models compiled for Linux and MacOS.
 
 ## Features
+- Upload data to Edge Impulse
 - Run Edge Impulse models (.eim files) on Linux and MacOS
 - Support for different model types:
   - Classification models
@@ -15,9 +16,9 @@ A Rust library for running Edge Impulse Linux models (EIM). This crate provides 
 - Continuous classification mode support
 - Debug output option
 
-## Communication Protocol
+## Inference Communication Protocol
 
-The Edge Impulse Runner uses a Unix socket-based IPC mechanism to communicate with the model process. The protocol is JSON-based and follows a request-response pattern.
+The Edge Impulse Inference Runner uses a Unix socket-based IPC mechanism to communicate with the model process. The protocol is JSON-based and follows a request-response pattern.
 
 ### Protocol Messages
 
@@ -129,6 +130,11 @@ When errors occur:
 }
 ```
 
+## Ingestion
+
+The ingestion module allows you to upload data to Edge Impulse using the [Edge Impulse Ingestion API](https://docs.edgeimpulse.com/reference/data-ingestion/ingestion-api).
+
+
 ## Installation
 Add this to your `Cargo.toml`:
 ```[dependencies]
@@ -136,6 +142,8 @@ edge_impulse_runner = "0.1.0"
 ```
 
 ## Quick Start
+
+### Inference
 ```rust
 use edge_impulse_runner::EimModel;
 
@@ -186,6 +194,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+### Ingestion
+```rust
+use edge_impulse_runner::ingestion::{Category, Ingestion, UploadOptions};
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Create client with your API key
+    let ingestion = Ingestion::new("your-api-key").with_debug(); // Optional: enable debug output
+    // Upload a file (image, audio, video, etc.)
+    let result = ingestion
+        .upload_file(
+            "path/to/file.jpg",
+            Category::Training,
+            Some("label".to_string()),
+            Some(UploadOptions {
+                disallow_duplicates: true,
+                add_date_id: true,
+            }),
+        )
+        .await?;
+    println!("Upload successful: {}", result);
+    Ok(())
+}
+
+```
 ## Examples
 
 All examples are located in the `examples` directory and accept a `--debug` flag to enable debug output.
@@ -289,6 +321,15 @@ Detected objects: [BoundingBox { label: "mug", value: 0.53125, x: 56, y: 40, wid
 Detected objects: [BoundingBox { label: "mug", value: 0.53125, x: 48, y: 40, width: 8, height: 8 }]
 Detected objects: [BoundingBox { label: "mug", value: 0.53125, x: 56, y: 40, width: 8, height: 8 }]
 Detected objects: [BoundingBox { label: "mug", value: 0.5625, x: 48, y: 40, width: 8, height: 8 }]
+```
+
+### Upload Image
+
+```bash
+cargo run --example upload_image -- \
+  -a "ei_..." |
+  -f ~/Downloads/mug.5jn81s9p.jpg \
+  --debug
 ```
 
 ## Development

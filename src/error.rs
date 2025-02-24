@@ -8,10 +8,10 @@
 //! The main error type is `EimError`, which encompasses all possible error
 //! conditions that can occur within the library.
 
-use thiserror::Error;
-use std::io;
-use std::fmt;
 use std::error::Error;
+use std::fmt;
+use std::io;
+use thiserror::Error;
 
 /// Represents all possible errors that can occur in the Edge Impulse Runner.
 ///
@@ -84,10 +84,7 @@ pub enum EimError {
 
 #[derive(Debug)]
 pub enum IngestionError {
-    Server {
-        status_code: u16,
-        message: String,
-    },
+    Server { status_code: u16, message: String },
     Config(String),
     Network(reqwest::Error),
     Json(serde_json::Error),
@@ -98,7 +95,10 @@ pub enum IngestionError {
 impl fmt::Display for IngestionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            IngestionError::Server { status_code, message } => {
+            IngestionError::Server {
+                status_code,
+                message,
+            } => {
                 write!(f, "Server error {}: {}", status_code, message)
             }
             IngestionError::Config(msg) => write!(f, "Configuration error: {}", msg),
