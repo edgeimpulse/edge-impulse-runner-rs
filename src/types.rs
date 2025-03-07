@@ -11,7 +11,7 @@ use serde::Serialize;
 ///
 /// These parameters are received from the model during initialization and describe
 /// the model's input requirements, processing settings, and output characteristics.
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct ModelParameters {
     /// Number of axes for motion/positional data (e.g., 3 for xyz accelerometer)
     pub axis_count: u32,
@@ -19,6 +19,9 @@ pub struct ModelParameters {
     pub frequency: f32,
     /// Indicates if the model supports anomaly detection (0 = no, 1 = yes)
     pub has_anomaly: u32,
+    /// Indicates if the model supports object tracking (0 = no, 1 = yes)
+    #[serde(default)]
+    pub has_object_tracking: bool,
     /// Number of color channels in input images (1 = grayscale, 3 = RGB)
     pub image_channel_count: u32,
     /// Number of consecutive frames required for video input
@@ -44,11 +47,63 @@ pub struct ModelParameters {
     /// Type of input sensor (see SensorType enum)
     pub sensor: i32,
     /// Size of the processing window for time-series data
-    pub slice_size: usize,
-    /// Optional confidence threshold for detections (0.0 to 1.0)
-    pub threshold: Option<f32>,
+    pub slice_size: u32,
+    /// Vector of thresholds for different types of detections
+    #[serde(default)]
+    pub thresholds: Vec<ModelThreshold>,
     /// Whether the model supports continuous mode operation
     pub use_continuous_mode: bool,
+}
+
+impl Default for ModelParameters {
+    fn default() -> Self {
+        Self {
+            axis_count: 0,
+            frequency: 0.0,
+            has_anomaly: 0,
+            has_object_tracking: false,
+            image_channel_count: 0,
+            image_input_frames: 1,
+            image_input_height: 0,
+            image_input_width: 0,
+            image_resize_mode: String::from("fit"),
+            inferencing_engine: 0,
+            input_features_count: 0,
+            interval_ms: 0.0,
+            label_count: 0,
+            labels: Vec::new(),
+            model_type: String::from("classification"),
+            sensor: -1,
+            slice_size: 0,
+            thresholds: Vec::new(),
+            use_continuous_mode: false,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type")]
+pub enum ModelThreshold {
+    #[serde(rename = "object_detection")]
+    ObjectDetection { id: u32, min_score: f32 },
+    #[serde(rename = "anomaly_gmm")]
+    AnomalyGMM { id: u32, min_anomaly_score: f32 },
+    #[serde(rename = "object_tracking")]
+    ObjectTracking {
+        id: u32,
+        keep_grace: u32,
+        max_observations: u32,
+        threshold: f32,
+    },
+}
+
+impl Default for ModelThreshold {
+    fn default() -> Self {
+        Self::ObjectDetection {
+            id: 0,
+            min_score: 0.5,
+        }
+    }
 }
 
 /// Information about the Edge Impulse project that created the model.
