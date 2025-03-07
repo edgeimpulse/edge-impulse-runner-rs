@@ -537,6 +537,7 @@ dependencies = [
  "mime_guess",
  "mockito",
  "objc",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",

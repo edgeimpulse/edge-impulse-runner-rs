@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 use crate::error::EimError;
 use crate::inference::messages::{
     ClassifyMessage, ErrorResponse, HelloMessage, InferenceResponse, InferenceResult, ModelInfo,
+    SetThresholdMessage, SetThresholdResponse, ThresholdConfig,
 };
 use crate::types::{ModelParameters, SensorType};
 
@@ -670,5 +671,103 @@ impl EimModel {
             .as_ref()
             .map(|info| info.model_parameters.input_features_count as usize)
             .ok_or_else(|| EimError::ExecutionError("Model info not available".to_string()))
+    }
+
+    /// Set a threshold for a specific learning block
+    ///
+    /// This method allows updating thresholds for different types of blocks:
+    /// - Anomaly detection (GMM)
+    /// - Object detection
+    /// - Object tracking
+    ///
+    /// # Arguments
+    ///
+    /// * `threshold` - The threshold configuration to set
+    ///
+    /// # Returns
+    ///
+    /// Returns `Result<(), EimError>` indicating success or failure
+    pub async fn set_learn_block_threshold(
+        &mut self,
+        threshold: ThresholdConfig,
+    ) -> Result<(), EimError> {
+        // First check if model info is available and supports thresholds
+        if self.model_info.is_none() {
+            self.debug_message("No model info available, sending hello message...");
+            self.send_hello()?;
+        }
+
+        // Log the current model state
+        if let Some(info) = &self.model_info {
+            self.debug_message(&format!(
+                "Current model type: {}",
+                info.model_parameters.model_type
+            ));
+            self.debug_message(&format!(
+                "Current model parameters: {:?}",
+                info.model_parameters
+            ));
+        }
+
+        let msg = SetThresholdMessage {
+            set_threshold: threshold,
+            id: self.next_message_id(),
+        };
+
+        let msg_str = serde_json::to_string(&msg)?;
+        self.debug_message(&format!("Sending threshold message: {}", msg_str));
+
+        writeln!(self.socket, "{}", msg_str).map_err(|e| {
+            self.debug_message(&format!("Failed to send threshold message: {}", e));
+            EimError::SocketError(format!("Failed to send threshold message: {}", e))
+        })?;
+
+        self.socket.flush().map_err(|e| {
+            self.debug_message(&format!("Failed to flush threshold message: {}", e));
+            EimError::SocketError(format!("Failed to flush socket: {}", e))
+        })?;
+
+        let mut reader = BufReader::new(&self.socket);
+        let mut line = String::new();
+
+        match reader.read_line(&mut line) {
+            Ok(_) => {
+                self.debug_message(&format!("Received response: {}", line));
+                match serde_json::from_str::<SetThresholdResponse>(&line) {
+                    Ok(response) => {
+                        if response.success {
+                            self.debug_message("Successfully set threshold");
+                            Ok(())
+                        } else {
+                            self.debug_message("Server reported failure setting threshold");
+                            Err(EimError::ExecutionError(
+                                "Server reported failure setting threshold".to_string(),
+                            ))
+                        }
+                    }
+                    Err(e) => {
+                        self.debug_message(&format!("Failed to parse threshold response: {}", e));
+                        // Try to parse as error response
+                        if let Ok(error) = serde_json::from_str::<ErrorResponse>(&line) {
+                            Err(EimError::ExecutionError(
+                                error.error.unwrap_or_else(|| "Unknown error".to_string()),
+                            ))
+                        } else {
+                            Err(EimError::ExecutionError(format!(
+                                "Invalid threshold response format: {}",
+                                e
+                            )))
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                self.debug_message(&format!("Failed to read threshold response: {}", e));
+                Err(EimError::SocketError(format!(
+                    "Failed to read response: {}",
+                    e
+                )))
+            }
+        }
     }
 }

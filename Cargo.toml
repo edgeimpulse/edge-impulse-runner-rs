@@ -33,6 +33,7 @@ gstreamer-video = "0.23.4"
 hound = "3.5"
 image = "0.25.5"
 mockito = "1.6.1"
+regex = "1.11.1"
 tempfile = "3.10.0"
 tokio = { version = "1.43.0", features = ["full", "test-util"] }
 tracing-test = "0.2.5"

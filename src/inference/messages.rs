@@ -10,6 +10,7 @@
 //! - Model information responses (`ModelInfo`)
 //! - Inference results (`InferenceResponse`)
 //! - Error responses (`ErrorResponse`)
+//! - Threshold messages (`SetThresholdMessage`)
 
 use crate::types::*;
 use serde::{Deserialize, Serialize};
@@ -151,4 +152,31 @@ pub struct ErrorResponse {
     #[allow(dead_code)]
     #[serde(default)]
     pub id: Option<u32>,
+}
+
+/// Message for setting model thresholds
+#[derive(Debug, Serialize)]
+pub struct SetThresholdMessage {
+    /// The threshold configuration to set
+    pub set_threshold: ThresholdConfig,
+    /// Unique message identifier
+    pub id: u32,
+}
+
+/// Different types of threshold configurations that can be set
+#[derive(Debug, Deserialize)]
+pub struct SetThresholdResponse {
+    /// Indicates if the threshold was set successfully
+    pub success: bool,
+    /// Message identifier matching the request
+    pub id: u32,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "type")]
+pub enum ThresholdConfig {
+    #[serde(rename = "object_detection")]
+    ObjectDetection { id: u32, min_score: f32 },
+    #[serde(rename = "anomaly")]
+    AnomalyGMM { id: u32, min_anomaly_score: f32 },
 }

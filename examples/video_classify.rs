@@ -20,15 +20,18 @@
 //! Note: This only works on MacOS and requires a webcam connected to the system.
 
 use clap::Parser;
+use edge_impulse_runner::inference::messages::ThresholdConfig;
 use edge_impulse_runner::{EimModel, InferenceResult};
 use gst::prelude::*;
 use gstreamer as gst;
 use gstreamer_app as gst_app;
 use gstreamer_video as gst_video;
 use gstreamer_video::{self, VideoCapsBuilder, VideoInfo};
+use regex::Regex;
 use std::error::Error;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+use tokio;
 
 /// Command line parameters for the video classification example
 #[derive(Parser, Debug)]
@@ -41,9 +44,9 @@ struct VideoClassifyParams {
     #[clap(short, long)]
     debug: bool,
 
-    /// Confidence threshold (0.0 to 1.0) for showing results
-    #[clap(short, long, default_value = "0.8")]
-    threshold: f32,
+    /// Override model thresholds. E.g. --thresholds 4.min_anomaly_score=35 overrides the min. anomaly score for block ID 4 to 35.
+    #[clap(long)]
+    thresholds: Option<String>,
 }
 
 // macOS specific run loop handling
@@ -288,7 +291,8 @@ fn process_sample(
     )
 }
 
-fn example_main() -> Result<(), Box<dyn Error>> {
+#[tokio::main]
+async fn example_main() -> Result<(), Box<dyn Error>> {
     // Initialize GStreamer first
     gst::init()?;
 
@@ -296,7 +300,68 @@ fn example_main() -> Result<(), Box<dyn Error>> {
     let params = VideoClassifyParams::parse();
 
     // Initialize Edge Impulse model first
-    let model_instance = EimModel::new_with_debug(&params.model, params.debug)?;
+    let mut model_instance = EimModel::new_with_debug(&params.model, params.debug)?;
+
+    // Set thresholds if provided
+    if let Some(thresholds_str) = params.thresholds.as_ref() {
+        println!("Attempting to set thresholds: {}", thresholds_str);
+        // Fixed regex pattern: moved hyphen to end of character class to avoid range interpretation
+        let re = Regex::new(r"^(\d+)\.([a-zA-Z0-9_-]+)=([\d\.]+)$")?;
+
+        for threshold in thresholds_str.split(',') {
+            if let Some(captures) = re.captures(threshold) {
+                let id: u32 = captures[1].parse()?;
+                let key = captures[2].to_string();
+                let value: f32 = captures[3].parse()?;
+
+                println!("Parsed threshold: id={}, key={}, value={}", id, key, value);
+
+                // Create appropriate threshold config based on key
+                let threshold_config = match key.as_str() {
+                    "min_anomaly_score" => ThresholdConfig::AnomalyGMM {
+                        id,
+                        min_anomaly_score: value,
+                    },
+                    "min_score" => {
+                        println!(
+                            "Creating ObjectDetection threshold config with min_score={}",
+                            value
+                        );
+                        ThresholdConfig::ObjectDetection {
+                            id,
+                            min_score: value,
+                        }
+                    }
+                    _ => {
+                        println!("Unknown threshold key: {}", key);
+                        continue;
+                    }
+                };
+
+                // Set the threshold
+                println!("Sending threshold config to model...");
+                match model_instance
+                    .set_learn_block_threshold(threshold_config)
+                    .await
+                {
+                    Ok(_) => println!(
+                        "Successfully set threshold for block {}: {}={}",
+                        id, key, value
+                    ),
+                    Err(e) => {
+                        println!("Failed to set threshold for block {}: {}", id, e);
+                        // Print model parameters to see current state
+                        if let Ok(params) = model_instance.parameters() {
+                            println!("Current model parameters:");
+                            println!("{:#?}", params);
+                        }
+                    }
+                }
+            } else {
+                println!("Failed to parse threshold: {}", threshold);
+            }
+        }
+    }
 
     // Extract just the values we need for the pipeline
     let model_params = model_instance.parameters()?;
@@ -378,33 +443,16 @@ fn example_main() -> Result<(), Box<dyn Error>> {
                             // Access classification through the InferenceResult enum
                             match result.result {
                                 InferenceResult::Classification { classification } => {
-                                    // Filter classifications by threshold
-                                    let filtered: Vec<_> = classification
-                                        .into_iter()
-                                        .filter(|(_, confidence)| *confidence >= params.threshold)
-                                        .collect();
-                                    if !filtered.is_empty() {
-                                        println!(
-                                            "Classification (confidence ≥ {}): {:?}",
-                                            params.threshold, filtered
-                                        );
+                                    if !classification.is_empty() {
+                                        println!("Classification: {:?}", classification);
                                     }
                                 }
                                 InferenceResult::ObjectDetection {
                                     bounding_boxes,
                                     classification,
                                 } => {
-                                    // Filter bounding boxes by threshold
-                                    let filtered_boxes: Vec<_> = bounding_boxes
-                                        .into_iter()
-                                        .filter(|b| b.value >= params.threshold)
-                                        .collect();
-
-                                    if !filtered_boxes.is_empty() {
-                                        println!(
-                                            "Detected objects (confidence ≥ {}): {:?}",
-                                            params.threshold, filtered_boxes
-                                        );
+                                    if !bounding_boxes.is_empty() {
+                                        println!("Detected objects: {:?}", bounding_boxes);
                                         if let Ok(mut last) = last_no_detection_clone.lock() {
                                             *last = Instant::now();
                                         }
@@ -412,25 +460,14 @@ fn example_main() -> Result<(), Box<dyn Error>> {
                                         // Check if 5 seconds have passed since last notification
                                         if let Ok(mut last) = last_no_detection_clone.lock() {
                                             if last.elapsed() >= Duration::from_secs(5) {
-                                                println!(
-                                                    "No objects detected above threshold {}",
-                                                    params.threshold
-                                                );
+                                                println!("No objects detected");
                                                 *last = Instant::now();
                                             }
                                         }
                                     }
 
-                                    // Filter classifications by threshold
-                                    let filtered_class: Vec<_> = classification
-                                        .into_iter()
-                                        .filter(|(_, confidence)| *confidence >= params.threshold)
-                                        .collect();
-                                    if !filtered_class.is_empty() {
-                                        println!(
-                                            "Classification (confidence ≥ {}): {:?}",
-                                            params.threshold, filtered_class
-                                        );
+                                    if !classification.is_empty() {
+                                        println!("Classification: {:?}", classification);
                                     }
                                 }
                             }
