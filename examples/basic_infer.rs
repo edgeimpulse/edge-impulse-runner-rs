@@ -10,7 +10,7 @@
 //! 4. Output classification results with probabilities
 //!
 //! Usage:
-//!   cargo run --example basic_classify -- --model <path_to_model> --features "0.1,0.2,..." [--debug]
+//!   cargo run --example basic_infer -- --model <path_to_model> --features "0.1,0.2,..." [--debug]
 
 use clap::Parser;
 use edge_impulse_runner::{EimModel, InferenceResult};
@@ -32,35 +32,15 @@ struct Args {
     debug: bool,
 }
 
-/// Parse a comma-separated string of features into a vector of f32 values
-///
-/// # Arguments
-/// * `s` - Input string containing comma-separated float values
-///
-/// # Returns
-/// * `Result<Vec<f32>, String>` - Vector of parsed float values or error message
-///
-/// # Example
-/// ```
-/// let features = parse_features("0.1,0.2,-0.3")?;
-/// assert_eq!(features, vec![0.1, 0.2, -0.3]);
-/// ```
-fn parse_features(s: &str) -> Result<Vec<f32>, String> {
-    s.trim_matches(|c| c == '\'' || c == '"')
-        .split(',')
-        .map(|s| {
-            s.trim()
-                .parse::<f32>()
-                .map_err(|e| format!("Invalid feature value '{}': {}", s, e))
-        })
-        .collect()
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     // Parse features from raw string
-    let features = parse_features(&args.features)?;
+    let features: Vec<f32> = args
+        .features
+        .split(',')
+        .map(|s| s.trim().parse::<f32>().expect("Failed to parse feature"))
+        .collect();
 
     // Adjust path to be relative to project root if not absolute
     let model_path = if !args.model.is_absolute() {
@@ -78,7 +58,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Run inference
-    let result = model.classify(features, Some(args.debug))?;
+    let result = model.infer(features, Some(args.debug))?;
 
     // Print results based on the inference type
     println!("Results:");

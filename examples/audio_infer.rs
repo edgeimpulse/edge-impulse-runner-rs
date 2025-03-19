@@ -10,7 +10,7 @@
 //! 4. Output the classification results
 //!
 //! Usage:
-//!   cargo run --example audio_classify -- --model <path_to_model> --audio <path_to_wav> [--debug]
+//!   cargo run --example audio_infer -- --model <path_to_model> --audio <path_to_wav> [--debug]
 
 use clap::Parser;
 use edge_impulse_runner::EimModel;
@@ -20,7 +20,7 @@ use std::path::PathBuf;
 
 /// Command line parameters for the audio classification example
 #[derive(Parser, Debug)]
-struct AudioClassifyParams {
+struct AudioInferParams {
     /// Path to the Edge Impulse model file (.eim)
     #[clap(short, long)]
     model: String,
@@ -35,7 +35,7 @@ struct AudioClassifyParams {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let params = AudioClassifyParams::parse();
+    let params = AudioInferParams::parse();
     let mut model = EimModel::new(&params.model)?;
 
     let audio_path = PathBuf::from(&params.audio);
@@ -65,8 +65,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let samples = samples[..model.input_size()?].to_vec();
     println!("Using {} samples for classification", samples.len());
 
-    // Run classification
-    let result = model.classify(samples, Some(params.debug))?;
+    // Run inference
+    let result = model.infer(samples, Some(params.debug))?;
     println!("Classification result: {:?}", result);
 
     Ok(())

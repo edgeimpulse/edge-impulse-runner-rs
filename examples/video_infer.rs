@@ -10,7 +10,7 @@
 //! 4. Output the classification results
 //!
 //! Usage:
-//!   cargo run --example video_classify -- --model <path_to_model> [--debug]
+//!   cargo run --example video_infer -- --model <path_to_model> [--debug]
 //!
 //! You may need to set the gstreamer plugins path:
 //! export GST_PLUGIN_PATH="/Library/Frameworks/GStreamer.framework/Versions/1.0/lib/gstreamer-1.0"
@@ -35,7 +35,7 @@ use tokio;
 
 /// Command line parameters for the video classification example
 #[derive(Parser, Debug)]
-struct VideoClassifyParams {
+struct VideoInferParams {
     /// Path to the Edge Impulse model file (.eim)
     #[clap(short, long)]
     model: String,
@@ -297,7 +297,7 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
     gst::init()?;
 
     // Parse command line arguments
-    let params = VideoClassifyParams::parse();
+    let params = VideoInferParams::parse();
 
     // Initialize Edge Impulse model first
     let mut model_instance = EimModel::new_with_debug(&params.model, params.debug)?;
@@ -438,10 +438,9 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
 
                 // Run inference
                 if let Ok(mut model) = model.lock() {
-                    match model.classify(features, Some(debug)) {
-                        Ok(result) => {
-                            // Access classification through the InferenceResult enum
-                            match result.result {
+                    match model.infer(features, Some(debug)) {
+                        Ok(response) => {
+                            match response.result {
                                 InferenceResult::Classification { classification } => {
                                     if !classification.is_empty() {
                                         println!("Classification: {:?}", classification);
@@ -472,8 +471,8 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
                                 }
                             }
                         }
-                        Err(e) => {
-                            eprintln!("Inference error: {}", e);
+                        Err(_) => {
+                            eprintln!("Inference error");
                         }
                     }
                 }

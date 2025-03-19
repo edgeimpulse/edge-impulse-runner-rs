@@ -46,7 +46,7 @@
 //!     let features: Vec<f32> = vec![0.1, 0.2, 0.3];
 //!
 //!     // Run inference
-//!     let result = model.classify(features, None)?;
+//!     let result = model.infer(features, None)?;
 //!
 //!     // Process results
 //!     match result.result {
@@ -117,7 +117,7 @@
 //! match EimModel::new("model.eim") {
 //!     Ok(mut model) => {
 //!         // Match on classification
-//!         match model.classify(vec![0.1, 0.2, 0.3], None) {
+//!         match model.infer(vec![0.1, 0.2, 0.3], None) {
 //!             Ok(result) => println!("Success!"),
 //!             Err(EimError::InvalidInput(msg)) => println!("Invalid input: {}", msg),
 //!             Err(e) => println!("Other error: {}", e),

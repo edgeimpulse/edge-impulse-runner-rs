@@ -74,8 +74,8 @@ For each inference request:
 ```json
 {
     "classify": [0.1, 0.2, 0.3],
-    "id": 2,
-    "debug": true
+    "id": 1,
+    "debug": false
 }
 ```
 
@@ -167,7 +167,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Run inference with normalized features
     let raw_features = vec![128, 128, 128];  // Example raw values
     let features: Vec<f32> = raw_features.into_iter().map(|x| x as f32 / 255.0).collect();
-    let result = model.classify(features, None)?;
+    let result = model.infer(features, None)?;
 
     // Handle the results based on model type
     match result.result {
@@ -229,7 +229,7 @@ The simplest example allows you to run inference by providing the features array
 
 ```bash
 # Format: comma-separated feature values
-cargo run --example basic_classify -- --model path/to/model.eim --features "0.1,0.2,0.3"
+cargo run --example basic_infer -- --model path/to/model.eim --features "0.1,0.2,0.3"
 ```
 
 The features array format depends on your model:
@@ -245,7 +245,7 @@ The repository includes an example that demonstrates audio classification using 
 To run the audio classification example:
 
 ```bash
-cargo run --example audio_classify -- --model <path_to_model.eim> --audio <path_to_audio.wav> [--debug]
+cargo run --example audio_infer -- --model <path_to_model.eim> --audio <path_to_audio.wav> [--debug]
 ```
 
 Example output:
@@ -258,30 +258,30 @@ INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
 Classification result: InferenceResponse { success: true, id: 2, result: Classification { classification: {"noise": 0.96875, "no": 0.015625, "yes": 0.01953125} } }
 ```
 
-### Image Classification
-The repository includes an example that demonstrates image classification using Edge Impulse models:
+### Inference on Images
+The repository includes an example that demonstrates inference on images using Edge Impulse models:
 
-To run the image classification example:
+To run the image inference example:
 ```bash
-cargo run --example image_classify -- --model path/to/model.eim --image path/to/image.jpg
+cargo run --example image_infer -- --model path/to/model.eim --image path/to/image.jpg
 ```
 
-Example output:
+Example output on a object detection model:
 ```
 Detected objects:
 ----------------
 - mug (90.62%): x=24, y=40, width=8, height=16
 ```
 
-### Video Classification
-The repository includes an example that demonstrates video classification using Edge Impulse models:
+### Video inference
+The repository includes an example that demonstrates inference on video using Edge Impulse models:
 
-To run the video classification example:
+To run the video example:
 ```bash
-cargo run --example video_classify -- --model path/to/model.eim
+cargo run --example video_infer -- --model path/to/model.eim
 ```
 
-Example output:
+Example output for an object detection model:
 ```
 Model Parameters:
 ----------------
@@ -312,8 +312,6 @@ ModelParameters {
 Model expects 96x96 input with 3 channels (9216 features)
 Image format will be 96x96 with 3 channels
 Setting up pipeline for 96x96 input with 3 channels
-2025-02-12 07:17:48.758 video_classify[65602:37375812] WARNING: AVCaptureDeviceTypeExternal is deprecated for Continuity Cameras. Please use AVCaptureDeviceTypeContinuityCamera and add NSCameraUseContinuityCameraDeviceType to your Info.plist.
-Playing... (Ctrl+C to stop)
 INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
 No objects detected
 Detected objects: [BoundingBox { label: "mug", value: 0.53125, x: 56, y: 48, width: 8, height: 8 }]
@@ -355,7 +353,7 @@ use edge_impulse_runner::{EimModel, EimError};
 fn main() {
     match EimModel::new("path/to/model.eim") {
         Ok(mut model) => {
-            match model.classify(vec![0.1, 0.2, 0.3], None) {
+            match model.infer(vec![0.1, 0.2, 0.3], None) {
                 Ok(result) => println!("Classification successful"),
                 Err(EimError::InvalidInput(msg)) => println!("Invalid input: {}", msg),
                 Err(EimError::ExecutionError(msg)) => println!("Model execution failed: {}", msg),

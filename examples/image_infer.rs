@@ -4,7 +4,7 @@
 //! using a trained model on a single image file.
 //!
 //! Usage:
-//!   cargo run --example image_classify -- --model <path_to_model> --image <path_to_image> [--debug]
+//!   cargo run --example image_infer -- --model <path_to_model> --image <path_to_image> [--debug]
 
 use clap::Parser;
 use edge_impulse_runner::{EimModel, InferenceResult};
@@ -14,12 +14,12 @@ use std::error::Error;
 
 /// Command line parameters for the image classification example
 #[derive(Parser, Debug)]
-struct ImageClassifyParams {
+struct ImageInferParams {
     /// Path to the Edge Impulse model file (.eim)
     #[clap(short, long)]
     model: String,
 
-    /// Path to the image file to classify
+    /// Path to the image file to infer
     #[clap(short, long)]
     image: String,
 
@@ -62,7 +62,7 @@ fn process_image(
 
 fn main() -> Result<(), Box<dyn Error>> {
     // Parse command line arguments
-    let params = ImageClassifyParams::parse();
+    let params = ImageInferParams::parse();
 
     // Initialize Edge Impulse model
     let mut model = EimModel::new_with_debug(&params.model, params.debug)?;
@@ -116,7 +116,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     });
 
     // Run inference
-    match model.classify(features, Some(params.debug))?.result {
+    match model.infer(features, Some(params.debug))?.result {
         InferenceResult::Classification { classification } => {
             println!("Classification results:");
             println!("----------------------");

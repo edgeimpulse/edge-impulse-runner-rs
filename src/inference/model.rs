@@ -47,7 +47,7 @@ pub type DebugCallback = Box<dyn Fn(&str) + Send + Sync>;
 ///
 /// // Run inference with some features
 /// let features = vec![0.1, 0.2, 0.3];
-/// let result = model.classify(features, None).unwrap();
+/// let result = model.infer(features, None).unwrap();
 /// ```
 ///
 /// # Communication Protocol
@@ -485,8 +485,8 @@ impl EimModel {
     ///
     /// # Returns
     ///
-    /// Returns `Result<InferenceResponse, EimError>` containing classification results
-    pub fn classify(
+    /// Returns `Result<InferenceResponse, EimError>` containing inference results
+    pub fn infer(
         &mut self,
         features: Vec<f32>,
         debug: Option<bool>,
@@ -499,13 +499,13 @@ impl EimModel {
         let uses_continuous_mode = self.requires_continuous_mode();
 
         if uses_continuous_mode {
-            self.classify_continuous_internal(features, debug)
+            self.infer_continuous_internal(features, debug)
         } else {
-            self.classify_single(features, debug)
+            self.infer_single(features, debug)
         }
     }
 
-    fn classify_continuous_internal(
+    fn infer_continuous_internal(
         &mut self,
         features: Vec<f32>,
         debug: Option<bool>,
@@ -537,7 +537,7 @@ impl EimModel {
             })
         } else {
             // Run inference on the full buffer
-            let mut response = self.classify_single(state.feature_matrix.clone(), debug)?;
+            let mut response = self.infer_single(state.feature_matrix.clone(), debug)?;
 
             // Apply moving average filter to the results
             if let InferenceResult::Classification {
@@ -556,7 +556,7 @@ impl EimModel {
         response
     }
 
-    fn classify_single(
+    fn infer_single(
         &mut self,
         features: Vec<f32>,
         debug: Option<bool>,
@@ -578,21 +578,21 @@ impl EimModel {
         let debug_features: Vec<f32> = features.iter().take(20).cloned().collect();
         let msg_str = serde_json::to_string(&msg)?;
         self.debug_message(&format!(
-            "Sending classification message with first 20 features: {:?}",
+            "Sending inference message with first 20 features: {:?}",
             debug_features
         ));
 
         writeln!(self.socket, "{}", msg_str).map_err(|e| {
-            self.debug_message(&format!("Failed to send classification message: {}", e));
-            EimError::SocketError(format!("Failed to send classify message: {}", e))
+            self.debug_message(&format!("Failed to send inference message: {}", e));
+            EimError::SocketError(format!("Failed to send inference message: {}", e))
         })?;
 
         self.socket.flush().map_err(|e| {
-            self.debug_message(&format!("Failed to flush classification message: {}", e));
+            self.debug_message(&format!("Failed to flush inference message: {}", e));
             EimError::SocketError(format!("Failed to flush socket: {}", e))
         })?;
 
-        self.debug_message("Classification message sent, waiting for response...");
+        self.debug_message("Inference message sent, waiting for response...");
 
         // Set socket to non-blocking mode
         self.socket.set_nonblocking(true).map_err(|e| {
@@ -615,7 +615,7 @@ impl EimModel {
                     self.debug_message(&format!("Read {} bytes: {}", n, buffer));
                     if let Ok(response) = serde_json::from_str::<InferenceResponse>(&buffer) {
                         if response.success {
-                            self.debug_message("Got successful classification response");
+                            self.debug_message("Got successful inference response");
                             // Reset to blocking mode before returning
                             let _ = self.socket.set_nonblocking(false);
                             return Ok(response);
