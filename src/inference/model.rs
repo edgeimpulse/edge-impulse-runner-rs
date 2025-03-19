@@ -266,11 +266,20 @@ impl EimModel {
             return Err(EimError::InvalidPath);
         }
 
+        // Convert relative path to absolute path
+        let absolute_path = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            std::env::current_dir()
+                .map_err(|_e| EimError::InvalidPath)?
+                .join(path)
+        };
+
         // Ensure the model file is executable
-        Self::ensure_executable(path)?;
+        Self::ensure_executable(&absolute_path)?;
 
         // Start the process
-        let process = std::process::Command::new(path)
+        let process = std::process::Command::new(&absolute_path)
             .arg(socket_path)
             .spawn()
             .map_err(|e| EimError::ExecutionError(e.to_string()))?;
@@ -278,7 +287,7 @@ impl EimModel {
         let socket = Self::connect_with_retry(socket_path, Duration::from_secs(5))?;
 
         let mut model = Self {
-            path: path.to_path_buf(),
+            path: absolute_path, // Store the absolute path
             socket_path: socket_path.to_path_buf(),
             socket,
             debug,
