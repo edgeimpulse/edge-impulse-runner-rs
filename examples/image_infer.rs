@@ -7,24 +7,25 @@
 //!   cargo run --example image_infer -- --model <path_to_model> --image <path_to_image> [--debug]
 
 use clap::Parser;
+use edge_impulse_runner::types::ModelThreshold;
 use edge_impulse_runner::{EimModel, InferenceResult};
 use image::{self};
-use serde_json::json;
 use std::error::Error;
 
 /// Command line parameters for the image classification example
 #[derive(Parser, Debug)]
-struct ImageInferParams {
-    /// Path to the Edge Impulse model file (.eim)
-    #[clap(short, long)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Path to the Edge Impulse model file
+    #[arg(short, long)]
     model: String,
 
-    /// Path to the image file to infer
-    #[clap(short, long)]
+    /// Path to the image file to process
+    #[arg(short, long)]
     image: String,
 
     /// Enable debug output
-    #[clap(short, long)]
+    #[arg(short, long, default_value_t = false)]
     debug: bool,
 }
 
@@ -32,28 +33,43 @@ fn process_image(
     image_data: Vec<u8>,
     width: u32,
     height: u32,
-    _channels: u32,
+    channels: u32,
     debug: bool,
 ) -> Vec<f32> {
     let mut features = Vec::with_capacity((width * height) as usize);
 
-    // Process RGB channels (3 bytes at a time)
-    for chunk in image_data.chunks(3) {
-        if chunk.len() == 3 {
-            let r = chunk[0];
-            let g = chunk[1];
-            let b = chunk[2];
-            // Convert to single feature value using
-            // (r << 16) + (g << 8) + b
-            let feature = ((r as u32) << 16) + ((g as u32) << 8) + (b as u32);
+    if channels == 1 {
+        // For grayscale images, repeat the value across channels using bit shifting
+        for &pixel in image_data.iter() {
+            // Create a 24-bit value by repeating the grayscale value across all channels
+            let feature = ((pixel as u32) << 16) | ((pixel as u32) << 8) | (pixel as u32);
             features.push(feature as f32);
+        }
+    } else {
+        // For RGB images, combine channels
+        for chunk in image_data.chunks(3) {
+            if chunk.len() == 3 {
+                // Combine RGB channels using bit shifting
+                let feature =
+                    ((chunk[0] as u32) << 16) | ((chunk[1] as u32) << 8) | (chunk[2] as u32);
+                features.push(feature as f32);
+            }
         }
     }
 
     if debug {
+        // Calculate some statistics about the features
+        let min = features.iter().fold(f32::INFINITY, |a, &b| a.min(b));
+        let max = features.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b));
+        let sum: f32 = features.iter().sum();
+        let mean = sum / features.len() as f32;
+
         println!(
-            "Sending classification message with first 20 features: {:?}",
-            &features[..20.min(features.len())]
+            "Feature statistics: min={:.3}, max={:.3}, mean={:.3}, count={}",
+            min,
+            max,
+            mean,
+            features.len()
         );
     }
 
@@ -61,34 +77,76 @@ fn process_image(
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // Parse command line arguments
-    let params = ImageInferParams::parse();
+    let args = Args::parse();
 
-    // Initialize Edge Impulse model
-    let mut model = EimModel::new_with_debug(&params.model, params.debug)?;
+    // Initialize the model
+    let mut model = EimModel::new_with_debug(&args.model, args.debug)?;
 
     // Get model parameters
     let model_params = model.parameters()?;
 
+    // Get the min_anomaly_score threshold
+    let min_anomaly_score = model_params
+        .thresholds
+        .iter()
+        .find_map(|t| match t {
+            ModelThreshold::AnomalyGMM {
+                min_anomaly_score, ..
+            } => Some(*min_anomaly_score),
+            _ => None,
+        })
+        .unwrap_or(6.0);
+
     // Print model parameters if debug is enabled
-    if params.debug {
+    if args.debug {
         println!("\nModel Parameters:");
         println!("----------------");
         println!("{:#?}", model_params);
+
+        // Print threshold information
+        println!("\nThresholds:");
+        for threshold in &model_params.thresholds {
+            match threshold {
+                ModelThreshold::AnomalyGMM {
+                    id,
+                    min_anomaly_score,
+                } => {
+                    println!(
+                        "  Anomaly GMM (ID: {}): min_anomaly_score = {}",
+                        id, min_anomaly_score
+                    );
+                }
+                ModelThreshold::ObjectDetection { id, min_score } => {
+                    println!("  Object Detection (ID: {}): min_score = {}", id, min_score);
+                }
+                ModelThreshold::ObjectTracking {
+                    id,
+                    keep_grace,
+                    max_observations,
+                    threshold,
+                } => {
+                    println!("  Object Tracking (ID: {}): keep_grace = {}, max_observations = {}, threshold = {}",
+                        id, keep_grace, max_observations, threshold);
+                }
+            }
+        }
         println!("----------------\n");
     }
 
     // Load and process the image
-    let img = image::open(&params.image)?;
+    let img = image::open(&args.image)?;
     let img = img.resize_exact(
         model_params.image_input_width,
         model_params.image_input_height,
         image::imageops::FilterType::Triangle,
     );
 
-    // Convert to RGB bytes
-    let rgb_img = img.to_rgb8();
-    let image_data = rgb_img.into_raw();
+    // Convert to RGB bytes if needed
+    let image_data = if model_params.image_channel_count == 1 {
+        img.to_luma8().into_raw()
+    } else {
+        img.to_rgb8().into_raw()
+    };
 
     // Process the image
     let features = process_image(
@@ -96,58 +154,102 @@ fn main() -> Result<(), Box<dyn Error>> {
         model_params.image_input_width,
         model_params.image_input_height,
         model_params.image_channel_count,
-        params.debug,
+        args.debug,
     );
 
-    if params.debug {
-        println!(
-            "Sending classification message with first 20 features: {:?}",
-            &features[..20.min(features.len())]
-        );
-    }
-
-    let features: Vec<f32> = features.into_iter().map(|x| x as f32 / 255.0).collect();
-
-    let _classification_message = json!({
-        "id": 2,
-        "classify": {
-            "features": features
-        }
-    });
-
     // Run inference
-    match model.infer(features, Some(params.debug))?.result {
+    let result = model.infer(features, Some(args.debug))?.result;
+
+    // Handle the result
+    match result {
         InferenceResult::Classification { classification } => {
-            println!("Classification results:");
-            println!("----------------------");
-            for (label, value) in classification {
-                println!("{}: {:.2}%", label, value * 100.0);
-            }
+            println!("Classification: {:?}", classification);
         }
         InferenceResult::ObjectDetection {
             bounding_boxes,
             classification,
         } => {
-            if !bounding_boxes.is_empty() {
-                println!("Detected objects:");
-                println!("----------------");
-                for bbox in bounding_boxes {
+            println!("Detected objects: {:?}", bounding_boxes);
+            if !classification.is_empty() {
+                println!("Classification: {:?}", classification);
+            }
+        }
+        InferenceResult::VisualAnomaly {
+            visual_anomaly_grid,
+            visual_anomaly_max,
+            visual_anomaly_mean,
+            anomaly,
+        } => {
+            // Print raw values for debugging
+            println!("\nRaw anomaly values:");
+            println!("  Overall: {:.2}", anomaly);
+            println!("  Maximum: {:.2}", visual_anomaly_max);
+            println!("  Mean: {:.2}", visual_anomaly_mean);
+
+            // Debug output for the grid
+            if args.debug {
+                println!("\nVisual anomaly grid:");
+                println!("  Number of regions: {}", visual_anomaly_grid.len());
+                for (i, bbox) in visual_anomaly_grid.iter().enumerate() {
                     println!(
-                        "- {} ({:.2}%): x={}, y={}, width={}, height={}",
-                        bbox.label,
-                        bbox.value * 100.0,
-                        bbox.x,
-                        bbox.y,
-                        bbox.width,
-                        bbox.height
+                        "  Region {}: value={:.2}, x={}, y={}, w={}, h={}",
+                        i, bbox.value, bbox.x, bbox.y, bbox.width, bbox.height
                     );
                 }
             }
-            if !classification.is_empty() {
-                println!("\nClassification results:");
-                println!("----------------------");
-                for (label, value) in classification {
-                    println!("{}: {:.2}%", label, value * 100.0);
+
+            println!("\nThreshold information:");
+            println!("  min_anomaly_score: {}", min_anomaly_score);
+
+            // Normalize all scores using the model's normalization method
+            let (normalized_anomaly, normalized_max, normalized_mean, normalized_regions) = model
+                .normalize_visual_anomaly(
+                    anomaly,
+                    visual_anomaly_max,
+                    visual_anomaly_mean,
+                    &visual_anomaly_grid
+                        .iter()
+                        .map(|bbox| {
+                            (
+                                bbox.value,
+                                bbox.x as u32,
+                                bbox.y as u32,
+                                bbox.width as u32,
+                                bbox.height as u32,
+                            )
+                        })
+                        .collect::<Vec<_>>(),
+                );
+
+            println!("\nNormalized scores:");
+            println!("  Overall score: {:.2}%", normalized_anomaly * 100.0);
+            println!("  Maximum score: {:.2}%", normalized_max * 100.0);
+            println!("  Mean score: {:.2}%", normalized_mean * 100.0);
+
+            // Show all detected regions (if any exist)
+            if !normalized_regions.is_empty() {
+                println!("\nDetected regions:");
+                for (value, x, y, w, h) in normalized_regions {
+                    println!(
+                        "  Region (normalized: {:.2}%): x={}, y={}, width={}, height={}",
+                        value * 100.0,
+                        x,
+                        y,
+                        w,
+                        h
+                    );
+                }
+            } else {
+                println!("\nNo regions detected");
+                if args.debug {
+                    println!("  Note: This could be because:");
+                    println!("  1. The model didn't detect any anomalies above the threshold");
+                    println!("  2. The visual_anomaly_grid is empty");
+                    println!("  3. The normalization process filtered out all regions");
+                    println!(
+                        "  4. The min_anomaly_score threshold ({}) is too high",
+                        min_anomaly_score
+                    );
                 }
             }
         }

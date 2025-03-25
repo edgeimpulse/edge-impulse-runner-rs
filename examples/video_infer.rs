@@ -21,6 +21,7 @@
 
 use clap::Parser;
 use edge_impulse_runner::inference::messages::ThresholdConfig;
+use edge_impulse_runner::types::ModelThreshold;
 use edge_impulse_runner::{EimModel, InferenceResult};
 use gst::prelude::*;
 use gstreamer as gst;
@@ -238,31 +239,45 @@ fn process_image(
     image_data: Vec<u8>,
     width: u32,
     height: u32,
-    _channels: u32,
+    channels: u32,
     debug: bool,
 ) -> Vec<f32> {
     let mut features = Vec::with_capacity((width * height) as usize);
 
-    // Process RGB channels (3 bytes at a time)
-    for chunk in image_data.chunks(3) {
-        if chunk.len() == 3 {
-            let r = chunk[0];
-            let g = chunk[1];
-            let b = chunk[2];
-            let feature = ((r as u32) << 16) + ((g as u32) << 8) + (b as u32);
-            features.push(feature as f32);
+    if channels == 1 {
+        // For grayscale images, use raw pixel values
+        for &pixel in image_data.iter() {
+            features.push(pixel as f32);
+        }
+    } else {
+        // For RGB images, combine channels
+        for chunk in image_data.chunks(3) {
+            if chunk.len() == 3 {
+                // Combine RGB channels using bit shifting
+                let feature =
+                    ((chunk[0] as u32) << 16) | ((chunk[1] as u32) << 8) | (chunk[2] as u32);
+                features.push(feature as f32);
+            }
         }
     }
 
     if debug {
+        // Calculate some statistics about the features
+        let min = features.iter().fold(f32::INFINITY, |a, &b| a.min(b));
+        let max = features.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b));
+        let sum: f32 = features.iter().sum();
+        let mean = sum / features.len() as f32;
+
         println!(
-            "Sending classification message with first 20 features: {:?}",
-            &features[..20.min(features.len())]
+            "Feature statistics: min={:.3}, max={:.3}, mean={:.3}, count={}",
+            min,
+            max,
+            mean,
+            features.len()
         );
     }
 
-    // Convert to normalized features
-    features.into_iter().map(|x| x as f32 / 255.0).collect()
+    features
 }
 
 fn process_sample(
@@ -291,21 +306,18 @@ fn process_sample(
     )
 }
 
-#[tokio::main]
-async fn example_main() -> Result<(), Box<dyn Error>> {
-    // Initialize GStreamer first
-    gst::init()?;
-
-    // Parse command line arguments
-    let params = VideoInferParams::parse();
-
-    // Initialize Edge Impulse model first
-    let mut model_instance = EimModel::new_with_debug(&params.model, params.debug)?;
+/// Initialize the Edge Impulse model and extract its parameters
+async fn initialize_model(
+    model_path: &str,
+    debug: bool,
+    thresholds: Option<&str>,
+) -> Result<(Arc<Mutex<EimModel>>, edge_impulse_runner::ModelParameters), Box<dyn std::error::Error>>
+{
+    let mut model_instance = EimModel::new_with_debug(model_path, debug)?;
 
     // Set thresholds if provided
-    if let Some(thresholds_str) = params.thresholds.as_ref() {
+    if let Some(thresholds_str) = thresholds {
         println!("Attempting to set thresholds: {}", thresholds_str);
-        // Fixed regex pattern: moved hyphen to end of character class to avoid range interpretation
         let re = Regex::new(r"^(\d+)\.([a-zA-Z0-9_-]+)=([\d\.]+)$")?;
 
         for threshold in thresholds_str.split(',') {
@@ -316,7 +328,6 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
 
                 println!("Parsed threshold: id={}, key={}, value={}", id, key, value);
 
-                // Create appropriate threshold config based on key
                 let threshold_config = match key.as_str() {
                     "min_anomaly_score" => ThresholdConfig::AnomalyGMM {
                         id,
@@ -338,7 +349,6 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
                     }
                 };
 
-                // Set the threshold
                 println!("Sending threshold config to model...");
                 match model_instance
                     .set_learn_block_threshold(threshold_config)
@@ -350,7 +360,6 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
                     ),
                     Err(e) => {
                         println!("Failed to set threshold for block {}: {}", id, e);
-                        // Print model parameters to see current state
                         if let Ok(params) = model_instance.parameters() {
                             println!("Current model parameters:");
                             println!("{:#?}", params);
@@ -363,12 +372,8 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    // Extract just the values we need for the pipeline
-    let model_params = model_instance.parameters()?;
-    let input_width = model_params.image_input_width;
-    let input_height = model_params.image_input_height;
-    let channel_count = model_params.image_channel_count;
-    let features_count = model_params.input_features_count;
+    // Get model parameters
+    let model_params = model_instance.parameters()?.clone();
 
     // Print detailed model parameters
     println!("\nModel Parameters:");
@@ -376,8 +381,28 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
     println!("{:#?}", model_params);
     println!("----------------\n");
 
-    // Now wrap the model in Arc<Mutex>
+    // Wrap the model in Arc<Mutex>
     let model = Arc::new(Mutex::new(model_instance));
+
+    Ok((model, model_params))
+}
+
+#[tokio::main]
+async fn example_main() -> Result<(), Box<dyn Error>> {
+    // Initialize GStreamer first
+    gst::init()?;
+
+    // Parse command line arguments
+    let params = VideoInferParams::parse();
+
+    // Initialize Edge Impulse model and get parameters
+    let (model, model_params) =
+        initialize_model(&params.model, params.debug, params.thresholds.as_deref()).await?;
+
+    let input_width = model_params.image_input_width;
+    let input_height = model_params.image_input_height;
+    let channel_count = model_params.image_channel_count;
+    let features_count = model_params.input_features_count;
 
     println!(
         "Model expects {}x{} input with {} channels ({} features)",
@@ -438,7 +463,7 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
 
                 // Run inference
                 if let Ok(mut model) = model.lock() {
-                    match model.infer(features, Some(debug)) {
+                    match model.infer(features, None) {
                         Ok(response) => {
                             match response.result {
                                 InferenceResult::Classification { classification } => {
@@ -467,6 +492,77 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
 
                                     if !classification.is_empty() {
                                         println!("Classification: {:?}", classification);
+                                    }
+                                }
+                                InferenceResult::VisualAnomaly {
+                                    visual_anomaly_grid,
+                                    visual_anomaly_max,
+                                    visual_anomaly_mean,
+                                    anomaly,
+                                } => {
+                                    // Print raw values for debugging
+                                    println!("\nRaw anomaly values:");
+                                    println!("  Overall: {:.2}", anomaly);
+                                    println!("  Maximum: {:.2}", visual_anomaly_max);
+                                    println!("  Mean: {:.2}", visual_anomaly_mean);
+
+                                    // Debug output for the grid
+                                    if debug {
+                                        println!("\nVisual anomaly grid:");
+                                        println!("  Number of regions: {}", visual_anomaly_grid.len());
+                                        for (i, bbox) in visual_anomaly_grid.iter().enumerate() {
+                                            println!("  Region {}: value={:.2}, x={}, y={}, w={}, h={}",
+                                                i, bbox.value, bbox.x, bbox.y, bbox.width, bbox.height);
+                                        }
+                                    }
+
+                                    println!("\nThreshold information:");
+                                    let min_anomaly_score = model_params.thresholds.iter()
+                                        .find_map(|t| match t {
+                                            ModelThreshold::AnomalyGMM { min_anomaly_score, .. } => Some(*min_anomaly_score),
+                                            _ => None,
+                                        })
+                                        .unwrap_or(6.0);
+                                    println!("  min_anomaly_score: {}", min_anomaly_score);
+
+                                    // Normalize all scores using the model's normalization method
+                                    let (normalized_anomaly, normalized_max, normalized_mean, normalized_regions) =
+                                        model.normalize_visual_anomaly(
+                                            anomaly,
+                                            visual_anomaly_max,
+                                            visual_anomaly_mean,
+                                            &visual_anomaly_grid.iter()
+                                                .map(|bbox| (bbox.value, bbox.x as u32, bbox.y as u32, bbox.width as u32, bbox.height as u32))
+                                                .collect::<Vec<_>>()
+                                        );
+
+                                    println!("\nNormalized scores:");
+                                    println!("  Overall score: {:.2}%", normalized_anomaly * 100.0);
+                                    println!("  Maximum score: {:.2}%", normalized_max * 100.0);
+                                    println!("  Mean score: {:.2}%", normalized_mean * 100.0);
+
+                                    // Show all detected regions (if any exist)
+                                    if !normalized_regions.is_empty() {
+                                        println!("\nDetected regions:");
+                                        for (value, x, y, w, h) in normalized_regions {
+                                            println!(
+                                                "  Region (normalized: {:.2}%): x={}, y={}, width={}, height={}",
+                                                value * 100.0,
+                                                x,
+                                                y,
+                                                w,
+                                                h
+                                            );
+                                        }
+                                    } else {
+                                        println!("\nNo regions detected");
+                                        if debug {
+                                            println!("  Note: This could be because:");
+                                            println!("  1. The model didn't detect any anomalies above the threshold");
+                                            println!("  2. The visual_anomaly_grid is empty");
+                                            println!("  3. The normalization process filtered out all regions");
+                                            println!("  4. The min_anomaly_score threshold ({}) is too high", min_anomaly_score);
+                                        }
                                     }
                                 }
                             }

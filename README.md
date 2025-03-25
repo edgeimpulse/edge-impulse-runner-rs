@@ -10,6 +10,7 @@ A Rust library for running inference with Edge Impulse Linux models (EIM) and up
 - Support for different model types:
   - Classification models
   - Object detection models
+  - Visual anomaly detection
 - Support for different sensor types:
   - Camera
   - Microphone
@@ -186,6 +187,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 for (label, prob) in classification {
                     println!("{}: {:.2}", label, prob);
                 }
+            }
+        }
+        InferenceResult::VisualAnomaly { visual_anomaly_grid, visual_anomaly_max, visual_anomaly_mean, anomaly } => {
+            // Normalize the anomaly scores
+            let (normalized_anomaly, normalized_max, normalized_mean, normalized_regions) =
+                model.normalize_visual_anomaly(
+                    anomaly,
+                    visual_anomaly_max,
+                    visual_anomaly_mean,
+                    &visual_anomaly_grid.iter()
+                        .map(|bbox| (bbox.value, bbox.x as u32, bbox.y as u32, bbox.width as u32, bbox.height as u32))
+                        .collect::<Vec<_>>()
+                );
+
+            println!("Anomaly score: {:.2}%", normalized_anomaly * 100.0);
+            println!("Maximum score: {:.2}%", normalized_max * 100.0);
+            println!("Mean score: {:.2}%", normalized_mean * 100.0);
+
+            // Print detected regions
+            for (value, x, y, w, h) in normalized_regions {
+                println!("Region: score={:.2}%, x={}, y={}, width={}, height={}",
+                    value * 100.0, x, y, w, h);
             }
         }
     }

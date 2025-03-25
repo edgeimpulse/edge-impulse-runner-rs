@@ -13,7 +13,9 @@
 //!   cargo run --example basic_infer -- --model <path_to_model> --features "0.1,0.2,..." [--debug]
 
 use clap::Parser;
+use edge_impulse_runner::types::ModelThreshold;
 use edge_impulse_runner::{EimModel, InferenceResult};
+use std::error::Error;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -58,27 +60,112 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Run inference
-    let result = model.infer(features, Some(args.debug))?;
+    let result = model.infer(features, Some(args.debug))?.result;
 
-    // Print results based on the inference type
-    println!("Results:");
-    match result.result {
+    // Get model parameters
+    let model_params = model.parameters()?;
+
+    // Handle the result
+    match result {
         InferenceResult::Classification { classification } => {
-            // For classification models, print each class with its probability
-            for (label, probability) in classification {
-                println!("{}: {:.2}%", label, probability * 100.0);
+            println!("Classification: {:?}", classification);
+        }
+        InferenceResult::ObjectDetection {
+            bounding_boxes,
+            classification,
+        } => {
+            println!("Detected objects: {:?}", bounding_boxes);
+            if !classification.is_empty() {
+                println!("Classification: {:?}", classification);
             }
         }
-        InferenceResult::ObjectDetection { bounding_boxes, .. } => {
-            // For object detection models, print detected objects with locations
-            for bbox in bounding_boxes {
-                println!(
-                    "Found {} at ({}, {}) with confidence {:.2}%",
-                    bbox.label,
-                    bbox.x,
-                    bbox.y,
-                    bbox.value * 100.0
+        InferenceResult::VisualAnomaly {
+            visual_anomaly_grid,
+            visual_anomaly_max,
+            visual_anomaly_mean,
+            anomaly,
+        } => {
+            // Print raw values for debugging
+            println!("\nRaw anomaly values:");
+            println!("  Overall: {:.2}", anomaly);
+            println!("  Maximum: {:.2}", visual_anomaly_max);
+            println!("  Mean: {:.2}", visual_anomaly_mean);
+
+            // Debug output for the grid
+            if args.debug {
+                println!("\nVisual anomaly grid:");
+                println!("  Number of regions: {}", visual_anomaly_grid.len());
+                for (i, bbox) in visual_anomaly_grid.iter().enumerate() {
+                    println!(
+                        "  Region {}: value={:.2}, x={}, y={}, w={}, h={}",
+                        i, bbox.value, bbox.x, bbox.y, bbox.width, bbox.height
+                    );
+                }
+            }
+
+            println!("\nThreshold information:");
+            let min_anomaly_score = model_params
+                .thresholds
+                .iter()
+                .find_map(|t| match t {
+                    ModelThreshold::AnomalyGMM {
+                        min_anomaly_score, ..
+                    } => Some(*min_anomaly_score),
+                    _ => None,
+                })
+                .unwrap_or(6.0);
+            println!("  min_anomaly_score: {}", min_anomaly_score);
+
+            // Normalize all scores using the model's normalization method
+            let (normalized_anomaly, normalized_max, normalized_mean, normalized_regions) = model
+                .normalize_visual_anomaly(
+                    anomaly,
+                    visual_anomaly_max,
+                    visual_anomaly_mean,
+                    &visual_anomaly_grid
+                        .iter()
+                        .map(|bbox| {
+                            (
+                                bbox.value,
+                                bbox.x as u32,
+                                bbox.y as u32,
+                                bbox.width as u32,
+                                bbox.height as u32,
+                            )
+                        })
+                        .collect::<Vec<_>>(),
                 );
+
+            println!("\nNormalized scores:");
+            println!("  Overall score: {:.2}%", normalized_anomaly * 100.0);
+            println!("  Maximum score: {:.2}%", normalized_max * 100.0);
+            println!("  Mean score: {:.2}%", normalized_mean * 100.0);
+
+            // Show all detected regions (if any exist)
+            if !normalized_regions.is_empty() {
+                println!("\nDetected regions:");
+                for (value, x, y, w, h) in normalized_regions {
+                    println!(
+                        "  Region (normalized: {:.2}%): x={}, y={}, width={}, height={}",
+                        value * 100.0,
+                        x,
+                        y,
+                        w,
+                        h
+                    );
+                }
+            } else {
+                println!("\nNo regions detected");
+                if args.debug {
+                    println!("  Note: This could be because:");
+                    println!("  1. The model didn't detect any anomalies above the threshold");
+                    println!("  2. The visual_anomaly_grid is empty");
+                    println!("  3. The normalization process filtered out all regions");
+                    println!(
+                        "  4. The min_anomaly_score threshold ({}) is too high",
+                        min_anomaly_score
+                    );
+                }
             }
         }
     }

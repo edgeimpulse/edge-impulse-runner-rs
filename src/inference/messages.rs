@@ -82,6 +82,17 @@ pub enum InferenceResult {
         #[serde(default)]
         classification: HashMap<String, f32>,
     },
+    /// Result from a visual anomaly detection model
+    VisualAnomaly {
+        /// Grid of anomaly scores for different regions of the image
+        visual_anomaly_grid: Vec<BoundingBox>,
+        /// Maximum anomaly score across all regions
+        visual_anomaly_max: f32,
+        /// Mean anomaly score across all regions
+        visual_anomaly_mean: f32,
+        /// Overall anomaly score for the image
+        anomaly: f32,
+    },
 }
 
 /// Response containing inference results.
@@ -131,6 +142,37 @@ impl fmt::Display for InferenceResponse {
                         bbox.width,
                         bbox.height
                     )?;
+                }
+                Ok(())
+            }
+            InferenceResult::VisualAnomaly {
+                visual_anomaly_grid,
+                visual_anomaly_max,
+                visual_anomaly_mean,
+                anomaly,
+            } => {
+                write!(
+                    f,
+                    "Visual anomaly detection: max={:.2}%, mean={:.2}%, overall={:.2}%",
+                    visual_anomaly_max * 100.0,
+                    visual_anomaly_mean * 100.0,
+                    anomaly * 100.0
+                )?;
+                if !visual_anomaly_grid.is_empty() {
+                    writeln!(f)?;
+                    write!(f, "Anomaly grid: ")?;
+                    for bbox in visual_anomaly_grid {
+                        write!(
+                            f,
+                            "{}({:.2}%) at ({},{},{},{}) ",
+                            bbox.label,
+                            bbox.value * 100.0,
+                            bbox.x,
+                            bbox.y,
+                            bbox.width,
+                            bbox.height
+                        )?;
+                    }
                 }
                 Ok(())
             }

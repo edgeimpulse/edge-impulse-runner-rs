@@ -12,7 +12,7 @@ use crate::inference::messages::{
     ClassifyMessage, ErrorResponse, HelloMessage, InferenceResponse, InferenceResult, ModelInfo,
     SetThresholdMessage, SetThresholdResponse, ThresholdConfig,
 };
-use crate::types::{ModelParameters, SensorType};
+use crate::types::{ModelParameters, ModelThreshold, SensorType, VisualAnomalyResult};
 
 /// Debug callback type for receiving debug messages
 pub type DebugCallback = Box<dyn Fn(&str) + Send + Sync>;
@@ -36,6 +36,7 @@ pub type DebugCallback = Box<dyn Fn(&str) + Send + Sync>;
 /// - Debug logging and callback system
 /// - Moving average filtering for continuous mode results
 /// - Automatic retry mechanisms for socket connections
+/// - Visual anomaly detection (FOMO AD) support with normalized scores
 ///
 /// # Example Usage
 ///
@@ -48,6 +49,20 @@ pub type DebugCallback = Box<dyn Fn(&str) + Send + Sync>;
 /// // Run inference with some features
 /// let features = vec![0.1, 0.2, 0.3];
 /// let result = model.infer(features, None).unwrap();
+///
+/// // For visual anomaly detection models, normalize the results
+/// if let InferenceResult::VisualAnomaly { anomaly, visual_anomaly_max, visual_anomaly_mean, visual_anomaly_grid } = result.result {
+///     let (normalized_anomaly, normalized_max, normalized_mean, normalized_regions) =
+///         model.normalize_visual_anomaly(
+///             anomaly,
+///             visual_anomaly_max,
+///             visual_anomaly_mean,
+///             &visual_anomaly_grid.iter()
+///                 .map(|bbox| (bbox.value, bbox.x as u32, bbox.y as u32, bbox.width as u32, bbox.height as u32))
+///                 .collect::<Vec<_>>()
+///         );
+///     println!("Anomaly score: {:.2}%", normalized_anomaly * 100.0);
+/// }
 /// ```
 ///
 /// # Communication Protocol
@@ -65,6 +80,24 @@ pub type DebugCallback = Box<dyn Fn(&str) + Send + Sync>;
 /// - Socket communication errors
 /// - Model execution errors
 /// - JSON serialization/deserialization errors
+///
+/// # Visual Anomaly Detection
+///
+/// For visual anomaly detection models (FOMO AD):
+/// - Scores are normalized relative to the model's minimum anomaly threshold
+/// - Results include overall anomaly score, maximum score, mean score, and anomalous regions
+/// - Region coordinates are provided in the original image dimensions
+/// - All scores are clamped to [0,1] range and displayed as percentages
+/// - Debug mode provides detailed information about thresholds and regions
+///
+/// # Threshold Configuration
+///
+/// Models can be configured with different thresholds:
+/// - Anomaly detection: `min_anomaly_score` threshold for visual anomaly detection
+/// - Object detection: `min_score` threshold for object confidence
+/// - Object tracking: `keep_grace`, `max_observations`, and `threshold` parameters
+///
+/// Thresholds can be updated at runtime using `set_learn_block_threshold`.
 pub struct EimModel {
     /// Path to the Edge Impulse model file (.eim)
     path: std::path::PathBuf,
@@ -583,12 +616,10 @@ impl EimModel {
             debug,
         };
 
-        // Limit feature debug output
-        let debug_features: Vec<f32> = features.iter().take(20).cloned().collect();
         let msg_str = serde_json::to_string(&msg)?;
         self.debug_message(&format!(
-            "Sending inference message with first 20 features: {:?}",
-            debug_features
+            "Sending inference message with {} features",
+            features.len()
         ));
 
         writeln!(self.socket, "{}", msg_str).map_err(|e| {
@@ -621,7 +652,11 @@ impl EimModel {
                     break;
                 }
                 Ok(n) => {
-                    self.debug_message(&format!("Read {} bytes: {}", n, buffer));
+                    // Skip printing feature values in the response
+                    if !buffer.contains("features:") && !buffer.contains("Features (") {
+                        self.debug_message(&format!("Read {} bytes: {}", n, buffer));
+                    }
+
                     if let Ok(response) = serde_json::from_str::<InferenceResponse>(&buffer) {
                         if response.success {
                             self.debug_message("Got successful inference response");
@@ -778,5 +813,52 @@ impl EimModel {
                 )))
             }
         }
+    }
+
+    /// Get the minimum anomaly score threshold from model parameters
+    fn get_min_anomaly_score(&self) -> f32 {
+        self.model_info
+            .as_ref()
+            .and_then(|info| {
+                info.model_parameters
+                    .thresholds
+                    .iter()
+                    .find_map(|t| match t {
+                        ModelThreshold::AnomalyGMM {
+                            min_anomaly_score, ..
+                        } => Some(*min_anomaly_score),
+                        _ => None,
+                    })
+            })
+            .unwrap_or(6.0)
+    }
+
+    /// Normalize an anomaly score relative to the model's minimum threshold
+    fn normalize_anomaly_score(&self, score: f32) -> f32 {
+        (score / self.get_min_anomaly_score()).min(1.0)
+    }
+
+    /// Normalize a visual anomaly result
+    pub fn normalize_visual_anomaly(
+        &self,
+        anomaly: f32,
+        max: f32,
+        mean: f32,
+        regions: &[(f32, u32, u32, u32, u32)],
+    ) -> VisualAnomalyResult {
+        let normalized_anomaly = self.normalize_anomaly_score(anomaly);
+        let normalized_max = self.normalize_anomaly_score(max);
+        let normalized_mean = self.normalize_anomaly_score(mean);
+        let normalized_regions: Vec<_> = regions
+            .iter()
+            .map(|(value, x, y, w, h)| (self.normalize_anomaly_score(*value), *x, *y, *w, *h))
+            .collect();
+
+        (
+            normalized_anomaly,
+            normalized_max,
+            normalized_mean,
+            normalized_regions,
+        )
     }
 }
