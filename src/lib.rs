@@ -51,14 +51,38 @@
 //!     // Process results
 //!     match result.result {
 //!         InferenceResult::Classification { classification } => {
-//!             for (label, probability) in classification {
-//!                 println!("{}: {:.2}%", label, probability * 100.0);
+//!             println!("Classification: {:?}", classification);
+//!         }
+//!         InferenceResult::ObjectDetection {
+//!             bounding_boxes,
+//!             classification,
+//!         } => {
+//!             println!("Detected objects: {:?}", bounding_boxes);
+//!             if !classification.is_empty() {
+//!                 println!("Classification: {:?}", classification);
 //!             }
 //!         }
-//!         InferenceResult::ObjectDetection { bounding_boxes, .. } => {
-//!             for bbox in bounding_boxes {
-//!                 println!("Found {} at ({}, {}) with confidence {:.2}%",
-//!                     bbox.label, bbox.x, bbox.y, bbox.value * 100.0);
+//!         InferenceResult::VisualAnomaly {
+//!             visual_anomaly_grid,
+//!             visual_anomaly_max,
+//!             visual_anomaly_mean,
+//!             anomaly,
+//!         } => {
+//!             let (normalized_anomaly, normalized_max, normalized_mean, normalized_regions) =
+//!                 model.normalize_visual_anomaly(
+//!                     anomaly,
+//!                     visual_anomaly_max,
+//!                     visual_anomaly_mean,
+//!                     &visual_anomaly_grid.iter()
+//!                         .map(|bbox| (bbox.value, bbox.x as u32, bbox.y as u32, bbox.width as u32, bbox.height as u32))
+//!                         .collect::<Vec<_>>()
+//!                 );
+//!             println!("Anomaly score: {:.2}%", normalized_anomaly * 100.0);
+//!             println!("Maximum score: {:.2}%", normalized_max * 100.0);
+//!             println!("Mean score: {:.2}%", normalized_mean * 100.0);
+//!             for (value, x, y, w, h) in normalized_regions {
+//!                 println!("Region: score={:.2}%, x={}, y={}, width={}, height={}",
+//!                     value * 100.0, x, y, w, h);
 //!             }
 //!         }
 //!     }

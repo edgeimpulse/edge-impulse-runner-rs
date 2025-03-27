@@ -15,7 +15,6 @@
 use clap::Parser;
 use edge_impulse_runner::types::ModelThreshold;
 use edge_impulse_runner::{EimModel, InferenceResult};
-use std::error::Error;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]

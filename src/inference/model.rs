@@ -41,7 +41,7 @@ pub type DebugCallback = Box<dyn Fn(&str) + Send + Sync>;
 /// # Example Usage
 ///
 /// ```no_run
-/// use edge_impulse_runner::EimModel;
+/// use edge_impulse_runner::{EimModel, InferenceResult};
 ///
 /// // Create a new model instance
 /// let mut model = EimModel::new("path/to/model.eim").unwrap();
