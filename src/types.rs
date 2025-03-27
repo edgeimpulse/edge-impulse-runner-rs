@@ -7,18 +7,40 @@
 use serde::Deserialize;
 use serde::Serialize;
 
+/// Enum representing different types of anomaly detection supported by the model
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunnerHelloHasAnomaly {
+    None = 0,
+    KMeans = 1,
+    GMM = 2,
+    VisualGMM = 3,
+}
+
+impl From<u32> for RunnerHelloHasAnomaly {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => Self::None,
+            1 => Self::KMeans,
+            2 => Self::GMM,
+            3 => Self::VisualGMM,
+            _ => Self::None,
+        }
+    }
+}
+
 /// Parameters that define a model's configuration and capabilities.
 ///
 /// These parameters are received from the model during initialization and describe
 /// the model's input requirements, processing settings, and output characteristics.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct ModelParameters {
     /// Number of axes for motion/positional data (e.g., 3 for xyz accelerometer)
     pub axis_count: u32,
     /// Sampling frequency in Hz for time-series data
     pub frequency: f32,
-    /// Indicates if the model supports anomaly detection (0 = no, 1 = yes)
-    pub has_anomaly: u32,
+    /// Indicates if the model supports anomaly detection
+    #[serde(deserialize_with = "deserialize_anomaly_type")]
+    pub has_anomaly: RunnerHelloHasAnomaly,
     /// Indicates if the model supports object tracking (0 = no, 1 = yes)
     #[serde(default)]
     pub has_object_tracking: bool,
@@ -60,7 +82,7 @@ impl Default for ModelParameters {
         Self {
             axis_count: 0,
             frequency: 0.0,
-            has_anomaly: 0,
+            has_anomaly: RunnerHelloHasAnomaly::None,
             has_object_tracking: false,
             image_channel_count: 0,
             image_input_frames: 1,
@@ -81,7 +103,15 @@ impl Default for ModelParameters {
     }
 }
 
-#[derive(Debug, Deserialize)]
+fn deserialize_anomaly_type<'de, D>(deserializer: D) -> Result<RunnerHelloHasAnomaly, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = u32::deserialize(deserializer)?;
+    Ok(RunnerHelloHasAnomaly::from(value))
+}
+
+#[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
 pub enum ModelThreshold {
     #[serde(rename = "object_detection")]
@@ -158,6 +188,9 @@ pub struct BoundingBox {
     /// Y-coordinate of the top-left corner
     pub y: i32,
 }
+
+/// Represents the normalized results of visual anomaly detection
+pub type VisualAnomalyResult = (f32, f32, f32, Vec<(f32, u32, u32, u32, u32)>);
 
 /// Represents the type of sensor used for data collection.
 ///
