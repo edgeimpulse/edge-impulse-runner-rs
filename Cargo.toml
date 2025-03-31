@@ -9,7 +9,11 @@ homepage = "https://github.com/edgeimpulse/edge-impulse-runner-rs"
 repository = "https://github.com/edgeimpulse/edge-impulse-runner-rs"
 readme = "README.md"
 keywords = ["ai", "ml", "edgeai", "tinyml", "edgeimpulse"]
-categories = ["ai", "ml", "edgeai", "tinyml", "edgeimpulse"]
+categories = [
+    "embedded",
+    "computer-vision",
+    "development-tools"
+]
 
 exclude = [
     ".github/**",
