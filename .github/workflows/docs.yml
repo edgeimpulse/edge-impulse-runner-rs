@@ -30,7 +30,7 @@ jobs:
 
       - name: Add index.html redirect
         run: |
-          echo '<meta http-equiv="refresh" content="0; url=edge-impulse-runner">' > target/doc/index.html
+          echo '<meta http-equiv="refresh" content="0; url=edge_impulse_runner">' > target/doc/index.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

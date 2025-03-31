@@ -68,7 +68,7 @@ When a new model is created, the following sequence occurs:
 }
 ```
 
-#### 2. Classification
+#### 2. Inference
 For each inference request:
 
 ##### ClassifyMessage (Runner -> Model):
@@ -114,6 +114,30 @@ For object detection models:
         "classification": {
             "class1": 0.8,
             "class2": 0.2
+        }
+    }
+}
+```
+
+For visual anomaly detection models:
+```json
+{
+    "success": true,
+    "id": 2,
+    "result": {
+        "visual_anomaly": {
+            "anomaly": 5.23,
+            "visual_anomaly_max": 7.89,
+            "visual_anomaly_mean": 4.12,
+            "visual_anomaly_grid": [
+                {
+                    "value": 0.955,
+                    "x": 24,
+                    "y": 40,
+                    "width": 8,
+                    "height": 16
+                }
+            ]
         }
     }
 }
