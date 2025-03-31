@@ -1,5 +1,5 @@
 # Edge Impulse
-[![Edge Impulse Tests](https://github.com/edgeimpulse/edge-impulse-runner-rs/actions/workflows/edge-impulse-runner.yml/badge.svg)](https://github.com/edgeimpulse/edge-impulse-runner-rs/actions/workflows/edge-impulse-runner.yml)
+[![Edge Impulse Tests](https://github.com/edgeimpulse/edge-impulse-runner-rs/actions/workflows/edge-impulse-runner.yml/badge.svg)](https://github.com/edgeimpulse/edge-impulse-runner-rs/actions/workflows/edge_impulse_runner.yml)
 [![Docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://edgeimpulse.github.io/edge-impulse-runner-rs/)
 
 A Rust library for running inference with Edge Impulse Linux models (EIM) and uploading data to Edge Impulse. This crate provides a safe and easy-to-use interface for interacting with Edge Impulse machine learning models compiled for Linux and MacOS.
@@ -139,7 +139,7 @@ The ingestion module allows you to upload data to Edge Impulse using the [Edge I
 ## Installation
 Add this to your `Cargo.toml`:
 ```[dependencies]
-edge_impulse_runner = "0.1.0"
+edge-impulse-runner = "1.0.0"
 ```
 
 ## Quick Start
