@@ -404,8 +404,10 @@ rustc --version
 cargo --version
 ```
 
-#### 2. Install GStreamer
-GStreamer is required for video capture and processing capabilities.
+#### 2. GStreamer (Optional)
+GStreamer is only required if you want to run the video-related examples (like `video_infer`). It is not needed for developing the library or running other examples.
+
+If you want to run the video examples:
 
 ##### macOS
 Download and install both packages:
@@ -433,7 +435,7 @@ For other Linux distributions, please refer to the [official GStreamer installat
 > **Note**: Windows support is currently untested.
 
 ### Verifying GStreamer Installation
-You can verify your GStreamer installation by running:
+If you installed GStreamer, you can verify your installation by running:
 ```bash
 gst-launch-1.0 --version
 ```
