@@ -11,6 +11,15 @@ readme = "README.md"
 keywords = ["ai", "ml", "edgeai", "tinyml", "edgeimpulse"]
 categories = ["ai", "ml", "edgeai", "tinyml", "edgeimpulse"]
 
+exclude = [
+    ".github/**",
+    ".gitignore",
+    "Cargo.lock",
+    "Cargo.toml.orig",
+    ".cargo_vcs_info.json",
+    "rustfmt.toml"
+]
+
 [dependencies]
 hex = "0.4.3"
 hmac = "0.12.1"
