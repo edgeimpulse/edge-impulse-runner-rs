@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("Audio file specs: {:?}", audio_file.spec());
     let samples: Vec<f32> = audio_file
         .samples::<i16>()
-        .map(|s| s.unwrap() as f32 / 32768.0)
+        .map(|s| s.unwrap() as f32)
         .collect();
 
     println!("Read {} samples from audio file", samples.len());
