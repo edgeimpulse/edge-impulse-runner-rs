@@ -46,8 +46,8 @@ pub type DebugCallback = Box<dyn Fn(&str) + Send + Sync>;
 /// // Create a new model instance
 /// let mut model = EimModel::new("path/to/model.eim").unwrap();
 ///
-/// // Run inference with some features
-/// let features = vec![0.1, 0.2, 0.3];
+/// // For RGB images, features must be in 0xRRGGBB format (not normalized to [0,1])
+/// let features = vec![0xFF0000 as f32, 0x00FF00 as f32, 0x0000FF as f32]; // Example: Red, Green, Blue pixels
 /// let result = model.infer(features, None).unwrap();
 ///
 /// // For visual anomaly detection models, normalize the results
@@ -89,6 +89,11 @@ pub type DebugCallback = Box<dyn Fn(&str) + Send + Sync>;
 /// - Region coordinates are provided in the original image dimensions
 /// - All scores are clamped to [0,1] range and displayed as percentages
 /// - Debug mode provides detailed information about thresholds and regions
+///
+/// # Image Feature Format
+///
+/// For RGB images, features must be in 0xRRGGBB format (not normalized to [0,1]).
+/// For grayscale images, features must be in 0xGGGGGG format (repeating the grayscale value).
 ///
 /// # Threshold Configuration
 ///
