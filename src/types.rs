@@ -125,6 +125,8 @@ pub enum ModelThreshold {
         max_observations: u32,
         threshold: f32,
     },
+    #[serde(rename = "unknown")]
+    Unknown { id: u32, unknown: f32 },
 }
 
 impl Default for ModelThreshold {

@@ -275,14 +275,14 @@ impl Ingestion {
 
         if self.debug {
             println!("=== Response ===");
-            println!("Status: {}", status);
+            println!("Status: {status}");
             println!("Headers: {:#?}", response.headers());
         }
 
         let body = response.text().await?;
 
         if self.debug {
-            println!("Body: {}", body);
+            println!("Body: {body}");
         }
 
         if !status.is_success() {
@@ -309,7 +309,7 @@ impl Ingestion {
         if !path.exists() {
             return Err(IngestionError::Io(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
-                format!("File not found: {:?}", path),
+                format!("File not found: {path:?}"),
             )));
         }
 
@@ -317,7 +317,7 @@ impl Ingestion {
         let mime_type = from_path(path).first_or_octet_stream().to_string();
 
         if self.debug {
-            println!("Detected mime type: {}", mime_type);
+            println!("Detected mime type: {mime_type}");
         }
 
         // Read the file
@@ -370,14 +370,14 @@ impl Ingestion {
 
         if self.debug {
             println!("=== Response ===");
-            println!("Status: {}", status);
+            println!("Status: {status}");
             println!("Headers: {:#?}", response.headers());
         }
 
         let body = response.text().await?;
 
         if self.debug {
-            println!("Body: {}", body);
+            println!("Body: {body}");
         }
 
         if !status.is_success() {
