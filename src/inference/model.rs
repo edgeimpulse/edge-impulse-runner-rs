@@ -375,7 +375,7 @@ impl EimModel {
             std::thread::sleep(retry_interval);
         }
 
-        Err(EimError::SocketError(format!("Timeout waiting for socket {socket_path} to become available")))
+        Err(EimError::SocketError(format!("Timeout waiting for socket {} to become available", socket_path.display())))
     }
 
     /// Get the next message ID
