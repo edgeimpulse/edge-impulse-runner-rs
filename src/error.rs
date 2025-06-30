@@ -99,13 +99,13 @@ impl fmt::Display for IngestionError {
                 status_code,
                 message,
             } => {
-                write!(f, "Server error {}: {}", status_code, message)
+                write!(f, "Server error {status_code}: {message}")
             }
-            IngestionError::Config(msg) => write!(f, "Configuration error: {}", msg),
-            IngestionError::Network(e) => write!(f, "Network error: {}", e),
-            IngestionError::Json(e) => write!(f, "JSON error: {}", e),
-            IngestionError::Header(e) => write!(f, "Header error: {}", e),
-            IngestionError::Io(e) => write!(f, "IO error: {}", e),
+            IngestionError::Config(msg) => write!(f, "Configuration error: {msg}"),
+            IngestionError::Network(e) => write!(f, "Network error: {e}"),
+            IngestionError::Json(e) => write!(f, "JSON error: {e}"),
+            IngestionError::Header(e) => write!(f, "Header error: {e}"),
+            IngestionError::Io(e) => write!(f, "IO error: {e}"),
         }
     }
 }

@@ -275,7 +275,7 @@ impl EimModel {
 
         let path = path.as_ref();
         let metadata = std::fs::metadata(path)
-            .map_err(|e| EimError::ExecutionError(format!("Failed to get file metadata: {}", e)))?;
+            .map_err(|e| EimError::ExecutionError(format!("Failed to get file metadata: {e}")))?;
 
         let perms = metadata.permissions();
         let current_mode = perms.mode();
@@ -284,7 +284,7 @@ impl EimModel {
             let mut new_perms = perms;
             new_perms.set_mode(current_mode | 0o100); // Add executable bit for user only
             std::fs::set_permissions(path, new_perms).map_err(|e| {
-                EimError::ExecutionError(format!("Failed to set executable permissions: {}", e))
+                EimError::ExecutionError(format!("Failed to set executable permissions: {e}"))
             })?;
         }
         Ok(())
@@ -368,20 +368,14 @@ impl EimModel {
                     if e.kind() != std::io::ErrorKind::NotFound
                         && e.kind() != std::io::ErrorKind::ConnectionRefused
                     {
-                        return Err(EimError::SocketError(format!(
-                            "Failed to connect to socket: {}",
-                            e
-                        )));
+                        return Err(EimError::SocketError(format!("Failed to connect to socket: {e}")));
                     }
                 }
             }
             std::thread::sleep(retry_interval);
         }
 
-        Err(EimError::SocketError(format!(
-            "Timeout waiting for socket {} to become available",
-            socket_path.display()
-        )))
+        Err(EimError::SocketError(format!("Timeout waiting for socket {socket_path} to become available")))
     }
 
     /// Get the next message ID
@@ -408,7 +402,7 @@ impl EimModel {
     /// Send debug messages when debug mode is enabled
     fn debug_message(&self, message: &str) {
         if self.debug {
-            println!("{}", message);
+            println!("{message}");
             if let Some(callback) = &self.debug_callback {
                 callback(message);
             }
@@ -422,16 +416,16 @@ impl EimModel {
         };
 
         let msg = serde_json::to_string(&hello_msg)?;
-        self.debug_message(&format!("Sending hello message: {}", msg));
+        self.debug_message(&format!("Sending hello message: {msg}"));
 
-        writeln!(self.socket, "{}", msg).map_err(|e| {
-            self.debug_message(&format!("Failed to send hello: {}", e));
-            EimError::SocketError(format!("Failed to send hello message: {}", e))
+        writeln!(self.socket, "{msg}").map_err(|e| {
+            self.debug_message(&format!("Failed to send hello: {e}"));
+            EimError::SocketError(format!("Failed to send hello message: {e}"))
         })?;
 
         self.socket.flush().map_err(|e| {
-            self.debug_message(&format!("Failed to flush hello: {}", e));
-            EimError::SocketError(format!("Failed to flush socket: {}", e))
+            self.debug_message(&format!("Failed to flush hello: {e}"));
+            EimError::SocketError(format!("Failed to flush socket: {e}"))
         })?;
 
         self.debug_message("Waiting for hello response...");
@@ -441,7 +435,7 @@ impl EimModel {
 
         match reader.read_line(&mut line) {
             Ok(n) => {
-                self.debug_message(&format!("Read {} bytes: {}", n, line));
+                self.debug_message(&format!("Read {n} bytes: {line}"));
 
                 match serde_json::from_str::<ModelInfo>(&line) {
                     Ok(info) => {
@@ -457,10 +451,10 @@ impl EimModel {
                         return Ok(());
                     }
                     Err(e) => {
-                        self.debug_message(&format!("Failed to parse model info: {}", e));
+                        self.debug_message(&format!("Failed to parse model info: {e}"));
                         if let Ok(error) = serde_json::from_str::<ErrorResponse>(&line) {
                             if !error.success {
-                                self.debug_message(&format!("Got error response: {:?}", error));
+                                self.debug_message(&format!("Got error response: {error:?}"));
                                 return Err(EimError::ExecutionError(
                                     error.error.unwrap_or_else(|| "Unknown error".to_string()),
                                 ));
@@ -470,11 +464,8 @@ impl EimModel {
                 }
             }
             Err(e) => {
-                self.debug_message(&format!("Failed to read hello response: {}", e));
-                return Err(EimError::SocketError(format!(
-                    "Failed to read response: {}",
-                    e
-                )));
+                self.debug_message(&format!("Failed to read hello response: {e}"));
+                return Err(EimError::SocketError(format!("Failed to read response: {e}")));
             }
         }
 
@@ -622,27 +613,24 @@ impl EimModel {
         };
 
         let msg_str = serde_json::to_string(&msg)?;
-        self.debug_message(&format!(
-            "Sending inference message with {} features",
-            features.len()
-        ));
+        self.debug_message(&format!("Sending inference message with {} features", features.len()));
 
-        writeln!(self.socket, "{}", msg_str).map_err(|e| {
-            self.debug_message(&format!("Failed to send inference message: {}", e));
-            EimError::SocketError(format!("Failed to send inference message: {}", e))
+        writeln!(self.socket, "{msg_str}").map_err(|e| {
+            self.debug_message(&format!("Failed to send inference message: {e}"));
+            EimError::SocketError(format!("Failed to send inference message: {e}"))
         })?;
 
         self.socket.flush().map_err(|e| {
-            self.debug_message(&format!("Failed to flush inference message: {}", e));
-            EimError::SocketError(format!("Failed to flush socket: {}", e))
+            self.debug_message(&format!("Failed to flush inference message: {e}"));
+            EimError::SocketError(format!("Failed to flush socket: {e}"))
         })?;
 
         self.debug_message("Inference message sent, waiting for response...");
 
         // Set socket to non-blocking mode
         self.socket.set_nonblocking(true).map_err(|e| {
-            self.debug_message(&format!("Failed to set non-blocking mode: {}", e));
-            EimError::SocketError(format!("Failed to set non-blocking mode: {}", e))
+            self.debug_message(&format!("Failed to set non-blocking mode: {e}"));
+            EimError::SocketError(format!("Failed to set non-blocking mode: {e}"))
         })?;
 
         let mut reader = BufReader::new(&self.socket);
@@ -659,7 +647,7 @@ impl EimModel {
                 Ok(n) => {
                     // Skip printing feature values in the response
                     if !buffer.contains("features:") && !buffer.contains("Features (") {
-                        self.debug_message(&format!("Read {} bytes: {}", n, buffer));
+                        self.debug_message(&format!("Read {n} bytes: {buffer}"));
                     }
 
                     if let Ok(response) = serde_json::from_str::<InferenceResponse>(&buffer) {
@@ -678,10 +666,10 @@ impl EimModel {
                     continue;
                 }
                 Err(e) => {
-                    self.debug_message(&format!("Read error: {}", e));
+                    self.debug_message(&format!("Read error: {e}"));
                     // Always try to reset blocking mode, even on error
                     let _ = self.socket.set_nonblocking(false);
-                    return Err(EimError::SocketError(format!("Read error: {}", e)));
+                    return Err(EimError::SocketError(format!("Read error: {e}")));
                 }
             }
         }
@@ -748,14 +736,8 @@ impl EimModel {
 
         // Log the current model state
         if let Some(info) = &self.model_info {
-            self.debug_message(&format!(
-                "Current model type: {}",
-                info.model_parameters.model_type
-            ));
-            self.debug_message(&format!(
-                "Current model parameters: {:?}",
-                info.model_parameters
-            ));
+            self.debug_message(&format!("Current model type: {}", info.model_parameters.model_type));
+            self.debug_message(&format!("Current model parameters: {:?}", info.model_parameters));
         }
 
         let msg = SetThresholdMessage {
@@ -764,16 +746,16 @@ impl EimModel {
         };
 
         let msg_str = serde_json::to_string(&msg)?;
-        self.debug_message(&format!("Sending threshold message: {}", msg_str));
+        self.debug_message(&format!("Sending threshold message: {msg_str}"));
 
-        writeln!(self.socket, "{}", msg_str).map_err(|e| {
-            self.debug_message(&format!("Failed to send threshold message: {}", e));
-            EimError::SocketError(format!("Failed to send threshold message: {}", e))
+        writeln!(self.socket, "{msg_str}").map_err(|e| {
+            self.debug_message(&format!("Failed to send threshold message: {e}"));
+            EimError::SocketError(format!("Failed to send threshold message: {e}"))
         })?;
 
         self.socket.flush().map_err(|e| {
-            self.debug_message(&format!("Failed to flush threshold message: {}", e));
-            EimError::SocketError(format!("Failed to flush socket: {}", e))
+            self.debug_message(&format!("Failed to flush threshold message: {e}"));
+            EimError::SocketError(format!("Failed to flush socket: {e}"))
         })?;
 
         let mut reader = BufReader::new(&self.socket);
@@ -781,7 +763,7 @@ impl EimModel {
 
         match reader.read_line(&mut line) {
             Ok(_) => {
-                self.debug_message(&format!("Received response: {}", line));
+                self.debug_message(&format!("Received response: {line}"));
                 match serde_json::from_str::<SetThresholdResponse>(&line) {
                     Ok(response) => {
                         if response.success {
@@ -795,27 +777,21 @@ impl EimModel {
                         }
                     }
                     Err(e) => {
-                        self.debug_message(&format!("Failed to parse threshold response: {}", e));
+                        self.debug_message(&format!("Failed to parse threshold response: {e}"));
                         // Try to parse as error response
                         if let Ok(error) = serde_json::from_str::<ErrorResponse>(&line) {
                             Err(EimError::ExecutionError(
                                 error.error.unwrap_or_else(|| "Unknown error".to_string()),
                             ))
                         } else {
-                            Err(EimError::ExecutionError(format!(
-                                "Invalid threshold response format: {}",
-                                e
-                            )))
+                            Err(EimError::ExecutionError(format!("Invalid threshold response format: {e}")))
                         }
                     }
                 }
             }
             Err(e) => {
-                self.debug_message(&format!("Failed to read threshold response: {}", e));
-                Err(EimError::SocketError(format!(
-                    "Failed to read response: {}",
-                    e
-                )))
+                self.debug_message(&format!("Failed to read threshold response: {e}"));
+                Err(EimError::SocketError(format!("Failed to read response: {e}")))
             }
         }
     }
