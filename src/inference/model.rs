@@ -368,14 +368,19 @@ impl EimModel {
                     if e.kind() != std::io::ErrorKind::NotFound
                         && e.kind() != std::io::ErrorKind::ConnectionRefused
                     {
-                        return Err(EimError::SocketError(format!("Failed to connect to socket: {e}")));
+                        return Err(EimError::SocketError(format!(
+                            "Failed to connect to socket: {e}"
+                        )));
                     }
                 }
             }
             std::thread::sleep(retry_interval);
         }
 
-        Err(EimError::SocketError(format!("Timeout waiting for socket {} to become available", socket_path.display())))
+        Err(EimError::SocketError(format!(
+            "Timeout waiting for socket {} to become available",
+            socket_path.display()
+        )))
     }
 
     /// Get the next message ID
@@ -465,7 +470,9 @@ impl EimModel {
             }
             Err(e) => {
                 self.debug_message(&format!("Failed to read hello response: {e}"));
-                return Err(EimError::SocketError(format!("Failed to read response: {e}")));
+                return Err(EimError::SocketError(format!(
+                    "Failed to read response: {e}"
+                )));
             }
         }
 
@@ -613,7 +620,10 @@ impl EimModel {
         };
 
         let msg_str = serde_json::to_string(&msg)?;
-        self.debug_message(&format!("Sending inference message with {} features", features.len()));
+        self.debug_message(&format!(
+            "Sending inference message with {} features",
+            features.len()
+        ));
 
         writeln!(self.socket, "{msg_str}").map_err(|e| {
             self.debug_message(&format!("Failed to send inference message: {e}"));
@@ -736,8 +746,14 @@ impl EimModel {
 
         // Log the current model state
         if let Some(info) = &self.model_info {
-            self.debug_message(&format!("Current model type: {}", info.model_parameters.model_type));
-            self.debug_message(&format!("Current model parameters: {:?}", info.model_parameters));
+            self.debug_message(&format!(
+                "Current model type: {}",
+                info.model_parameters.model_type
+            ));
+            self.debug_message(&format!(
+                "Current model parameters: {:?}",
+                info.model_parameters
+            ));
         }
 
         let msg = SetThresholdMessage {
@@ -784,14 +800,18 @@ impl EimModel {
                                 error.error.unwrap_or_else(|| "Unknown error".to_string()),
                             ))
                         } else {
-                            Err(EimError::ExecutionError(format!("Invalid threshold response format: {e}")))
+                            Err(EimError::ExecutionError(format!(
+                                "Invalid threshold response format: {e}"
+                            )))
                         }
                     }
                 }
             }
             Err(e) => {
                 self.debug_message(&format!("Failed to read threshold response: {e}"));
-                Err(EimError::SocketError(format!("Failed to read response: {e}")))
+                Err(EimError::SocketError(format!(
+                    "Failed to read response: {e}"
+                )))
             }
         }
     }
