@@ -1,3 +1,4 @@
+use rand::{thread_rng, Rng};
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::io::{BufRead, BufReader, Write};
@@ -7,7 +8,6 @@ use std::process::Child;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 use tempfile::{tempdir, TempDir};
-use rand::{Rng, thread_rng};
 
 use crate::error::EimError;
 use crate::inference::messages::{
@@ -274,7 +274,8 @@ impl EimModel {
     /// Create a new EimModel instance with debug output enabled
     pub fn new_with_debug<P: AsRef<Path>>(path: P, debug: bool) -> Result<Self, EimError> {
         // Create a unique temporary directory for the socket
-        let tempdir = tempdir().map_err(|e| EimError::ExecutionError(format!("Failed to create tempdir: {e}")))?;
+        let tempdir = tempdir()
+            .map_err(|e| EimError::ExecutionError(format!("Failed to create tempdir: {e}")))?;
         // Generate a random socket filename
         let mut rng = thread_rng();
         let socket_name = format!("eim_socket_{}", rng.r#gen::<u64>());
@@ -480,13 +481,13 @@ impl EimModel {
                     }
                     Err(e) => {
                         self.debug_message(&format!("Failed to parse model info: {e}"));
-                        if let Ok(error) = serde_json::from_str::<ErrorResponse>(&line) {
-                            if !error.success {
-                                self.debug_message(&format!("Got error response: {error:?}"));
-                                return Err(EimError::ExecutionError(
-                                    error.error.unwrap_or_else(|| "Unknown error".to_string()),
-                                ));
-                            }
+                        if let Ok(error) = serde_json::from_str::<ErrorResponse>(&line)
+                            && !error.success
+                        {
+                            self.debug_message(&format!("Got error response: {error:?}"));
+                            return Err(EimError::ExecutionError(
+                                error.error.unwrap_or_else(|| "Unknown error".to_string()),
+                            ));
                         }
                     }
                 }
@@ -683,13 +684,13 @@ impl EimModel {
                         self.debug_message(&format!("Read {n} bytes: {buffer}"));
                     }
 
-                    if let Ok(response) = serde_json::from_str::<InferenceResponse>(&buffer) {
-                        if response.success {
-                            self.debug_message("Got successful inference response");
-                            // Reset to blocking mode before returning
-                            let _ = self.socket.set_nonblocking(false);
-                            return Ok(response);
-                        }
+                    if let Ok(response) = serde_json::from_str::<InferenceResponse>(&buffer)
+                        && response.success
+                    {
+                        self.debug_message("Got successful inference response");
+                        // Reset to blocking mode before returning
+                        let _ = self.socket.set_nonblocking(false);
+                        return Ok(response);
                     }
                     buffer.clear();
                 }
