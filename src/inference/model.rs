@@ -1,4 +1,4 @@
-use rand::{thread_rng, Rng};
+use rand::{Rng, thread_rng};
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::io::{BufRead, BufReader, Write};
@@ -7,7 +7,7 @@ use std::path::Path;
 use std::process::Child;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
-use tempfile::{tempdir, TempDir};
+use tempfile::{TempDir, tempdir};
 
 use crate::error::EimError;
 use crate::inference::messages::{

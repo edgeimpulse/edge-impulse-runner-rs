@@ -69,7 +69,7 @@ where
 {
     use std::{
         ffi::c_void,
-        sync::mpsc::{channel, Sender},
+        sync::mpsc::{Sender, channel},
         thread,
     };
 

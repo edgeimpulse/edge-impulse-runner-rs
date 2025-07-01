@@ -125,8 +125,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                     max_observations,
                     threshold,
                 } => {
-                    println!("  Object Tracking (ID: {}): keep_grace = {}, max_observations = {}, threshold = {}",
-                        id, keep_grace, max_observations, threshold);
+                    println!(
+                        "  Object Tracking (ID: {}): keep_grace = {}, max_observations = {}, threshold = {}",
+                        id, keep_grace, max_observations, threshold
+                    );
                 }
                 ModelThreshold::Unknown { id, unknown } => {
                     println!("  Unknown (ID: {}): unknown = {}", id, unknown);
