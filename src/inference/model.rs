@@ -1,3 +1,4 @@
+use rand::{Rng, thread_rng};
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::io::{BufRead, BufReader, Write};
@@ -6,6 +7,7 @@ use std::path::Path;
 use std::process::Child;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
+use tempfile::{TempDir, tempdir};
 
 use crate::error::EimError;
 use crate::inference::messages::{
@@ -108,6 +110,12 @@ pub struct EimModel {
     path: std::path::PathBuf,
     /// Path to the Unix socket used for IPC
     socket_path: std::path::PathBuf,
+    /// Handle to the temporary directory for the socket (ensures cleanup)
+    ///
+    /// This field is required to keep the temporary directory alive for the lifetime of the model.
+    /// If dropped, the directory (and socket file) would be deleted, breaking model communication.
+    #[allow(dead_code)]
+    tempdir: Option<TempDir>,
     /// Active Unix socket connection to the model process
     socket: UnixStream,
     /// Enable debug logging of socket communications
@@ -260,13 +268,19 @@ impl EimModel {
         path: P,
         socket_path: S,
     ) -> Result<Self, EimError> {
-        Self::new_with_socket_and_debug(path, socket_path, false)
+        Self::new_with_socket_and_debug_internal(path, socket_path, false, None)
     }
 
     /// Create a new EimModel instance with debug output enabled
     pub fn new_with_debug<P: AsRef<Path>>(path: P, debug: bool) -> Result<Self, EimError> {
-        let socket_path = std::env::temp_dir().join("eim_socket");
-        Self::new_with_socket_and_debug(path, &socket_path, debug)
+        // Create a unique temporary directory for the socket
+        let tempdir = tempdir()
+            .map_err(|e| EimError::ExecutionError(format!("Failed to create tempdir: {e}")))?;
+        // Generate a random socket filename
+        let mut rng = thread_rng();
+        let socket_name = format!("eim_socket_{}", rng.r#gen::<u64>());
+        let socket_path = tempdir.path().join(socket_name);
+        Self::new_with_socket_and_debug_internal(path, &socket_path, debug, Some(tempdir))
     }
 
     /// Ensure the model file has execution permissions for the current user
@@ -295,6 +309,15 @@ impl EimModel {
         path: P,
         socket_path: S,
         debug: bool,
+    ) -> Result<Self, EimError> {
+        Self::new_with_socket_and_debug_internal(path, socket_path, debug, None)
+    }
+
+    fn new_with_socket_and_debug_internal<P: AsRef<Path>, S: AsRef<Path>>(
+        path: P,
+        socket_path: S,
+        debug: bool,
+        tempdir: Option<TempDir>,
     ) -> Result<Self, EimError> {
         let path = path.as_ref();
         let socket_path = socket_path.as_ref();
@@ -327,6 +350,7 @@ impl EimModel {
         let mut model = Self {
             path: absolute_path, // Store the absolute path
             socket_path: socket_path.to_path_buf(),
+            tempdir,
             socket,
             debug,
             _process: process,
@@ -457,13 +481,13 @@ impl EimModel {
                     }
                     Err(e) => {
                         self.debug_message(&format!("Failed to parse model info: {e}"));
-                        if let Ok(error) = serde_json::from_str::<ErrorResponse>(&line) {
-                            if !error.success {
-                                self.debug_message(&format!("Got error response: {error:?}"));
-                                return Err(EimError::ExecutionError(
-                                    error.error.unwrap_or_else(|| "Unknown error".to_string()),
-                                ));
-                            }
+                        if let Ok(error) = serde_json::from_str::<ErrorResponse>(&line)
+                            && !error.success
+                        {
+                            self.debug_message(&format!("Got error response: {error:?}"));
+                            return Err(EimError::ExecutionError(
+                                error.error.unwrap_or_else(|| "Unknown error".to_string()),
+                            ));
                         }
                     }
                 }
@@ -660,13 +684,13 @@ impl EimModel {
                         self.debug_message(&format!("Read {n} bytes: {buffer}"));
                     }
 
-                    if let Ok(response) = serde_json::from_str::<InferenceResponse>(&buffer) {
-                        if response.success {
-                            self.debug_message("Got successful inference response");
-                            // Reset to blocking mode before returning
-                            let _ = self.socket.set_nonblocking(false);
-                            return Ok(response);
-                        }
+                    if let Ok(response) = serde_json::from_str::<InferenceResponse>(&buffer)
+                        && response.success
+                    {
+                        self.debug_message("Got successful inference response");
+                        // Reset to blocking mode before returning
+                        let _ = self.socket.set_nonblocking(false);
+                        return Ok(response);
                     }
                     buffer.clear();
                 }

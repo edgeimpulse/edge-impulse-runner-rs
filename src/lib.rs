@@ -163,8 +163,8 @@ pub mod inference;
 pub mod ingestion;
 pub mod types;
 
-pub use inference::messages::{InferenceResponse, InferenceResult};
 pub use inference::EimModel;
+pub use inference::messages::{InferenceResponse, InferenceResult};
 
 pub use error::EimError;
 pub use types::BoundingBox;

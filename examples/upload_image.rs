@@ -45,7 +45,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize logging with appropriate level
     if std::env::var("RUST_LOG").is_err() {
-        std::env::set_var("RUST_LOG", if args.debug { "debug" } else { "info" });
+        unsafe {
+            std::env::set_var("RUST_LOG", if args.debug { "debug" } else { "info" });
+        }
     }
     env_logger::init();
 

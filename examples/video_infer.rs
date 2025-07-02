@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 //! Video Classification Example (macOS only)
 //!
 //! This example demonstrates how to use the Edge Impulse Runner to perform video classification
@@ -67,7 +69,7 @@ where
 {
     use std::{
         ffi::c_void,
-        sync::mpsc::{channel, Sender},
+        sync::mpsc::{Sender, channel},
         thread,
     };
 
@@ -98,7 +100,7 @@ where
         let delegate = delegate!("AppDelegate", {
             app: id = app,
             send: *const c_void = Box::into_raw(Box::new(send)) as *const c_void,
-            (applicationDidFinishLaunching:) => on_finish_launching as extern fn(&Object, Sel, id)
+            (applicationDidFinishLaunching:) => on_finish_launching as extern "C" fn(&Object, Sel, id)
         });
         app.setDelegate_(delegate);
 

@@ -2,6 +2,12 @@
 [![Edge Impulse Tests](https://github.com/edgeimpulse/edge-impulse-runner-rs/actions/workflows/edge-impulse-runner.yml/badge.svg)](https://github.com/edgeimpulse/edge-impulse-runner-rs/actions/workflows/edge_impulse_runner.yml)
 [![Docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://edgeimpulse.github.io/edge-impulse-runner-rs/)
 
+> **⚠️ Note: This crate requires the Rust nightly toolchain due to transitive dependencies.**
+>
+> To build and run, you must:
+> 1. Install nightly: `rustup install nightly`
+> 2. Set nightly for this project: `rustup override set nightly`
+
 A Rust library for running inference with Edge Impulse Linux models (EIM) and uploading data to Edge Impulse. This crate provides a safe and easy-to-use interface for interacting with Edge Impulse machine learning models compiled for Linux and MacOS.
 
 ## Features
@@ -416,6 +422,14 @@ fn main() {
 ## Development Setup
 
 ### Prerequisites
+
+> **⚠️ This project requires the Rust nightly toolchain due to transitive dependencies.**
+>
+> Install and set up nightly for this project:
+> ```bash
+> rustup install nightly
+> rustup override set nightly
+> ```
 
 #### 1. Install Rust
 Install Rust using rustup (recommended method):
