@@ -246,16 +246,20 @@ fn process_image(
 ) -> Vec<f32> {
     let mut features = Vec::with_capacity((width * height) as usize);
 
+    // Always pass in full RGB array in the form of pixels like 0xff0000
+    // DSP handles normalization and splitting into 1 or 3 channels
     if channels == 1 {
-        // For grayscale images, use raw pixel values
+        // For grayscale images, create RGB values by repeating the grayscale value
         for &pixel in image_data.iter() {
-            features.push(pixel as f32);
+            // Create 24-bit RGB value: 0xRRGGBB where R=G=B=pixel
+            let feature = ((pixel as u32) << 16) | ((pixel as u32) << 8) | (pixel as u32);
+            features.push(feature as f32);
         }
     } else {
-        // For RGB images, combine channels
+        // For RGB images, combine channels into 24-bit RGB values
         for chunk in image_data.chunks(3) {
             if chunk.len() == 3 {
-                // Combine RGB channels using bit shifting
+                // Create 24-bit RGB value: 0xRRGGBB
                 let feature =
                     ((chunk[0] as u32) << 16) | ((chunk[1] as u32) << 8) | (chunk[2] as u32);
                 features.push(feature as f32);
