@@ -39,11 +39,11 @@ A Rust library for running Edge Impulse Linux models with support for both EIM b
 ### EIM Mode (Default)
 
 ```rust
-use edge_impulse_runner::{EimModel, InferenceResult};
+use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a new model instance using EIM binary
-    let mut model = EimModel::new("path/to/model.eim")?;
+    let mut model = EdgeImpulseModel::new("path/to/model.eim")?;
 
     // Prepare normalized features (e.g., image pixels, audio samples)
     let features: Vec<f32> = vec![0.1, 0.2, 0.3];
@@ -82,11 +82,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### FFI Mode
 
 ```rust
-use edge_impulse_runner::{EimModel, InferenceResult};
+use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a new model instance using FFI (requires "ffi" feature)
-    let mut model = EimModel::new_ffi(false)?; // false = no debug
+    let mut model = EdgeImpulseModel::new_ffi(false)?; // false = no debug
 
     // Prepare normalized features
     let features: Vec<f32> = vec![0.1, 0.2, 0.3];
@@ -161,31 +161,6 @@ pub trait InferenceBackend: Send + Sync {
 | **Deployment** | Requires `.eim` files | Requires compiled model |
 | **Flexibility** | Dynamic model loading | Static model compilation |
 
-## Migration Guide
-
-### From Previous Versions
-
-The API remains backward compatible. Existing code using `EimModel::new()` will continue to work with the EIM backend.
-
-### Adding FFI Support
-
-To add FFI support to existing projects:
-
-1. Add the FFI feature to your `Cargo.toml`:
-   ```toml
-   [dependencies]
-   edge-impulse-runner = { version = "1.0", features = ["eim", "ffi"] }
-   ```
-
-2. Use `EimModel::new_ffi()` instead of `EimModel::new()` for FFI mode:
-   ```rust
-   // EIM mode
-   let model = EimModel::new("model.eim")?;
-
-   // FFI mode
-   let model = EimModel::new_ffi(false)?;
-   ```
-
 ## Prerequisites
 
 ### EIM Mode
@@ -205,9 +180,9 @@ Some functionality (particularly video capture) requires GStreamer to be install
 The crate uses the `EimError` type to provide detailed error information:
 
 ```rust
-use edge_impulse_runner::{EimModel, EimError};
+use edge_impulse_runner::{EdgeImpulseModel, EimError};
 
-match EimModel::new("model.eim") {
+match EdgeImpulseModel::new("model.eim") {
     Ok(mut model) => {
         match model.infer(vec![0.1, 0.2, 0.3], None) {
             Ok(result) => println!("Success!"),
