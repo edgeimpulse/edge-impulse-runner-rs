@@ -12,7 +12,11 @@
 //! 4. Output the classification results
 //!
 //! Usage:
+//!   # EIM mode (requires model file)
 //!   cargo run --example video_infer -- --model <path_to_model> [--debug]
+//!
+//!   # FFI mode (no model file needed)
+//!   cargo run --example video_infer --features ffi -- [--debug]
 //!
 //! You may need to set the gstreamer plugins path:
 //! export GST_PLUGIN_PATH="/Library/Frameworks/GStreamer.framework/Versions/1.0/lib/gstreamer-1.0"
@@ -22,15 +26,15 @@
 //! Note: This only works on MacOS and requires a webcam connected to the system.
 
 use clap::Parser;
-use edge_impulse_runner::inference::messages::ThresholdConfig;
+// Removed unused import
 use edge_impulse_runner::types::ModelThreshold;
-use edge_impulse_runner::{EimModel, InferenceResult};
+use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
 use gst::prelude::*;
 use gstreamer as gst;
 use gstreamer_app as gst_app;
 use gstreamer_video as gst_video;
 use gstreamer_video::{self, VideoCapsBuilder, VideoInfo};
-use regex::Regex;
+// Removed unused import
 use std::error::Error;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -39,9 +43,9 @@ use tokio;
 /// Command line parameters for the video classification example
 #[derive(Parser, Debug)]
 struct VideoInferParams {
-    /// Path to the Edge Impulse model file (.eim)
+    /// Path to the Edge Impulse model file (.eim) (not needed for FFI mode)
     #[clap(short, long)]
-    model: String,
+    model: Option<String>,
 
     /// Enable debug output
     #[clap(short, long)]
@@ -50,6 +54,10 @@ struct VideoInferParams {
     /// Override model thresholds. E.g. --thresholds 4.min_anomaly_score=35 overrides the min. anomaly score for block ID 4 to 35.
     #[clap(long)]
     thresholds: Option<String>,
+
+    /// Use FFI mode instead of EIM mode
+    #[clap(long)]
+    ffi: bool,
 }
 
 // macOS specific run loop handling
@@ -314,68 +322,57 @@ fn process_sample(
 
 /// Initialize the Edge Impulse model and extract its parameters
 async fn initialize_model(
-    model_path: &str,
+    model_path: Option<&str>,
     debug: bool,
     thresholds: Option<&str>,
-) -> Result<(Arc<Mutex<EimModel>>, edge_impulse_runner::ModelParameters), Box<dyn std::error::Error>>
+    ffi_mode: bool,
+) -> Result<(Arc<Mutex<EdgeImpulseModel>>, edge_impulse_runner::ModelParameters), Box<dyn std::error::Error>>
 {
-    let mut model_instance = EimModel::new_with_debug(model_path, debug)?;
-
-    // Set thresholds if provided
-    if let Some(thresholds_str) = thresholds {
-        println!("Attempting to set thresholds: {}", thresholds_str);
-        let re = Regex::new(r"^(\d+)\.([a-zA-Z0-9_-]+)=([\d\.]+)$")?;
-
-        for threshold in thresholds_str.split(',') {
-            if let Some(captures) = re.captures(threshold) {
-                let id: u32 = captures[1].parse()?;
-                let key = captures[2].to_string();
-                let value: f32 = captures[3].parse()?;
-
-                println!("Parsed threshold: id={}, key={}, value={}", id, key, value);
-
-                let threshold_config = match key.as_str() {
-                    "min_anomaly_score" => ThresholdConfig::AnomalyGMM {
-                        id,
-                        min_anomaly_score: value,
-                    },
-                    "min_score" => {
-                        println!(
-                            "Creating ObjectDetection threshold config with min_score={}",
-                            value
-                        );
-                        ThresholdConfig::ObjectDetection {
-                            id,
-                            min_score: value,
-                        }
-                    }
-                    _ => {
-                        println!("Unknown threshold key: {}", key);
-                        continue;
-                    }
-                };
-
-                println!("Sending threshold config to model...");
-                match model_instance
-                    .set_learn_block_threshold(threshold_config)
-                    .await
-                {
-                    Ok(_) => println!(
-                        "Successfully set threshold for block {}: {}={}",
-                        id, key, value
-                    ),
-                    Err(e) => {
-                        println!("Failed to set threshold for block {}: {}", id, e);
-                        if let Ok(params) = model_instance.parameters() {
-                            println!("Current model parameters:");
-                            println!("{:#?}", params);
-                        }
-                    }
-                }
-            } else {
-                println!("Failed to parse threshold: {}", threshold);
-            }
+    let model_instance = if ffi_mode {
+        // FFI mode - no model file needed
+        println!("Using FFI mode");
+        let model = EdgeImpulseModel::new_ffi(debug)?;
+        #[cfg(feature = "ffi")]
+        {
+            let metadata = edge_impulse_ffi_rs::ModelMetadata::get();
+            println!("\nModel Metadata:");
+            println!("===============" );
+            println!("Project ID: {}", metadata.project_id);
+            println!("Project Owner: {}", metadata.project_owner);
+            println!("Project Name: {}", metadata.project_name);
+            println!("Deploy Version: {}", metadata.deploy_version);
+            println!("Model Type: {}", if metadata.has_object_detection { "Object Detection" } else { "Classification" });
+            println!("Input Dimensions: {}x{}x{}", metadata.input_width, metadata.input_height, metadata.input_frames);
+            println!("Input Features: {}", metadata.input_features_count);
+            println!("Label Count: {}", metadata.label_count);
+            println!("Sensor Type: {}", match metadata.sensor {
+                1 => "Microphone",
+                2 => "Accelerometer",
+                3 => "Camera",
+                4 => "Positional",
+                _ => "Unknown"
+            });
+            println!("Inferencing Engine: {}", match metadata.inferencing_engine {
+                1 => "uTensor",
+                2 => "TensorFlow Lite",
+                3 => "CubeAI",
+                4 => "TensorFlow Lite Full",
+                _ => "Other"
+            });
+            println!("Has Anomaly Detection: {}", metadata.has_anomaly);
+            println!("Has Object Tracking: {}", metadata.has_object_tracking);
+            println!("===============\n");
         }
+        model
+    } else {
+        // EIM mode - model file required
+        let model_path = model_path.ok_or("Model path is required for EIM mode")?;
+        EdgeImpulseModel::new_with_debug(model_path, debug)?
+    };
+
+    // Set thresholds if provided (not supported in current backend abstraction)
+    if let Some(thresholds_str) = thresholds {
+        println!("Threshold setting not supported in current backend abstraction: {}", thresholds_str);
     }
 
     // Get model parameters
@@ -403,7 +400,7 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
 
     // Initialize Edge Impulse model and get parameters
     let (model, model_params) =
-        initialize_model(&params.model, params.debug, params.thresholds.as_deref()).await?;
+        initialize_model(params.model.as_deref(), params.debug, params.thresholds.as_deref(), params.ffi).await?;
 
     let input_width = model_params.image_input_width;
     let input_height = model_params.image_input_height;
@@ -466,6 +463,11 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
                     },
                     debug,
                 );
+
+                // Debug: Print feature count mismatch
+                if features.len() != features_count as usize {
+                    eprintln!("Feature count mismatch: got {} features, expected {}", features.len(), features_count);
+                }
 
                 // Run inference
                 if let Ok(mut model) = model.lock() {
@@ -573,8 +575,8 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
                                 }
                             }
                         }
-                        Err(_) => {
-                            eprintln!("Inference error");
+                        Err(e) => {
+                            eprintln!("Inference error: {}", e);
                         }
                     }
                 }

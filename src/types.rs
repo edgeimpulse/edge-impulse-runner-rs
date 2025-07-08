@@ -141,7 +141,7 @@ impl Default for ModelThreshold {
 /// Information about the Edge Impulse project that created the model.
 ///
 /// Contains metadata about the project's origin and version.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct ProjectInfo {
     /// Version number of the deployment
     pub deploy_version: u32,

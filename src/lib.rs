@@ -162,11 +162,12 @@ pub mod error;
 pub mod inference;
 pub mod ingestion;
 pub mod types;
+pub mod backends;
 
-pub use inference::EimModel;
 pub use inference::messages::{InferenceResponse, InferenceResult};
 
 pub use error::EimError;
+pub use inference::model::EdgeImpulseModel;
 pub use types::BoundingBox;
 pub use types::ModelParameters;
 pub use types::ProjectInfo;

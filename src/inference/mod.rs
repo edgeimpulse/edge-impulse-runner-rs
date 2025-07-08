@@ -1,11 +1,11 @@
 pub mod messages;
-mod model;
+pub mod model;
+// Removed eim_original module - functionality moved to backends/eim.rs
 
-pub use model::EimModel;
 
 #[cfg(test)]
 mod tests {
-    use crate::{EimError, EimModel};
+    use crate::{EimError, EdgeImpulseModel};
     use std::env;
     use std::fs::File;
     use std::io::Write;
@@ -56,7 +56,7 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'cat {}'"#,
         let socket_path = temp_dir.path().join("test.socket");
 
         // Test with a non-existent file
-        let result = EimModel::new_with_socket("unknown.eim", &socket_path);
+        let result = EdgeImpulseModel::new_with_socket("unknown.eim", &socket_path);
         match result {
             Err(EimError::ExecutionError(msg)) if msg.contains("No such file") => (),
             other => panic!("Expected ExecutionError for missing file, got {:?}", other),

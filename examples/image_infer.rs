@@ -4,21 +4,30 @@
 //! using a trained model on a single image file.
 //!
 //! Usage:
+//!   # EIM mode (requires model file)
 //!   cargo run --example image_infer -- --model <path_to_model> --image <path_to_image> [--debug]
+//!
+//!   # FFI mode (no model file needed)
+//!   cargo run --example image_infer --features ffi -- --image <path_to_image> [--debug]
 
 use clap::Parser;
 use edge_impulse_runner::types::ModelThreshold;
-use edge_impulse_runner::{EimModel, InferenceResult};
+use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
 use image::{self};
 use std::error::Error;
+// Removed unused import
+use std::time::Instant;
+
+#[cfg(feature = "ffi")]
+use edge_impulse_ffi_rs::ModelMetadata;
 
 /// Command line parameters for the image classification example
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Path to the Edge Impulse model file
+    /// Path to the Edge Impulse model file (not needed for FFI mode)
     #[arg(short, long)]
-    model: String,
+    model: Option<String>,
 
     /// Path to the image file to process
     #[arg(short, long)]
@@ -27,6 +36,10 @@ struct Args {
     /// Enable debug output
     #[arg(short, long, default_value_t = false)]
     debug: bool,
+
+    /// Use FFI mode instead of EIM mode
+    #[arg(long, default_value_t = false)]
+    ffi: bool,
 }
 
 fn process_image(
@@ -80,7 +93,54 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
     // Initialize the model
-    let mut model = EimModel::new_with_debug(&args.model, args.debug)?;
+    let mut model = if args.ffi {
+        // FFI mode - no model file needed
+        println!("Using FFI mode");
+        let model = EdgeImpulseModel::new_ffi(args.debug)?;
+
+        // Print model metadata for FFI mode
+        #[cfg(feature = "ffi")]
+        {
+            let metadata = ModelMetadata::get();
+            println!("\nModel Metadata:");
+            println!("===============");
+            println!("Project ID: {}", metadata.project_id);
+            println!("Project Owner: {}", metadata.project_owner);
+            println!("Project Name: {}", metadata.project_name);
+            println!("Deploy Version: {}", metadata.deploy_version);
+            println!("Model Type: {}", if metadata.has_object_detection { "Object Detection" } else { "Classification" });
+            println!("Input Dimensions: {}x{}x{}", metadata.input_width, metadata.input_height, metadata.input_frames);
+            println!("Input Features: {}", metadata.input_features_count);
+            println!("Label Count: {}", metadata.label_count);
+            println!("Sensor Type: {}", match metadata.sensor {
+                1 => "Microphone",
+                2 => "Accelerometer",
+                3 => "Camera",
+                4 => "Positional",
+                _ => "Unknown"
+            });
+            println!("Inferencing Engine: {}", match metadata.inferencing_engine {
+                1 => "uTensor",
+                2 => "TensorFlow Lite",
+                3 => "CubeAI",
+                4 => "TensorFlow Lite Full",
+                _ => "Other"
+            });
+            println!("Has Anomaly Detection: {}", metadata.has_anomaly);
+            println!("Has Object Tracking: {}", metadata.has_object_tracking);
+            println!("===============\n");
+        }
+        #[cfg(not(feature = "ffi"))]
+        {
+            println!("Model metadata not available in non-FFI mode");
+        }
+
+        model
+    } else {
+        // EIM mode - model file required
+        let model_path = args.model.ok_or("Model path is required for EIM mode")?;
+        EdgeImpulseModel::new_with_debug(&model_path, args.debug)?
+    };
 
     // Get model parameters
     let model_params = model.parameters()?;
@@ -153,7 +213,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         img.to_rgb8().into_raw()
     };
 
-    // Process the image
+    // Process the image with timing
+    let processing_start = Instant::now();
     let features = process_image(
         image_data,
         model_params.image_input_width,
@@ -161,9 +222,22 @@ fn main() -> Result<(), Box<dyn Error>> {
         model_params.image_channel_count,
         args.debug,
     );
+    let processing_duration = processing_start.elapsed();
 
-    // Run inference
-    let result = model.infer(features, Some(args.debug))?.result;
+    if args.debug {
+        println!("Image processing took: {:.2}ms", processing_duration.as_millis());
+    }
+
+    // Run inference with timing
+    let inference_start = Instant::now();
+    let inference_result = model.infer(features, Some(args.debug))?;
+    let inference_duration = inference_start.elapsed();
+
+    if args.debug {
+        println!("Inference took: {:.2}ms", inference_duration.as_millis());
+    }
+
+    let result = inference_result.result;
 
     // Handle the result
     match result {

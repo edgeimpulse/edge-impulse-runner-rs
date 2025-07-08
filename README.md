@@ -1,226 +1,68 @@
-# Edge Impulse
-[![Edge Impulse Tests](https://github.com/edgeimpulse/edge-impulse-runner-rs/actions/workflows/edge-impulse-runner.yml/badge.svg)](https://github.com/edgeimpulse/edge-impulse-runner-rs/actions/workflows/edge_impulse_runner.yml)
-[![Docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://edgeimpulse.github.io/edge-impulse-runner-rs/)
+# Edge Impulse Runner for Rust
 
-> **⚠️ Note: This crate requires the Rust nightly toolchain due to transitive dependencies.**
->
-> To build and run, you must:
-> 1. Install nightly: `rustup install nightly`
-> 2. Set nightly for this project: `rustup override set nightly`
-
-A Rust library for running inference with Edge Impulse Linux models (EIM) and uploading data to Edge Impulse. This crate provides a safe and easy-to-use interface for interacting with Edge Impulse machine learning models compiled for Linux and MacOS.
+A Rust library for running Edge Impulse Linux models with support for both EIM binary communication and direct FFI calls.
 
 ## Features
-- Upload data to Edge Impulse
-- Run Edge Impulse models (.eim files) on Linux and MacOS
+
+### Dual Backend Support
+- **EIM Mode** (default): Traditional socket-based communication with Edge Impulse binary files
+- **FFI Mode**: Direct FFI calls to the Edge Impulse C++ SDK for improved performance
+
+### Inference Capabilities
+- Run Edge Impulse models on Linux and MacOS
 - Support for different model types:
   - Classification models
   - Object detection models
-  - Visual anomaly detection
+  - Visual anomaly detection models
 - Support for different sensor types:
   - Camera
   - Microphone
+  - Accelerometer
+  - Positional sensors
 - Continuous classification mode support
 - Debug output option
 
-## Inference Communication Protocol
-
-The Edge Impulse Inference Runner uses a Unix socket-based IPC mechanism to communicate with the model process. The protocol is JSON-based and follows a request-response pattern.
-
-### Protocol Messages
-
-#### 1. Initialization
-When a new model is created, the following sequence occurs:
-
-##### HelloMessage (Runner -> Model):
-```json
-{
-    "hello": 1,
-    "id": 1
-}
-```
-
-##### ModelInfo Response (Model -> Runner):
-```json
-{
-    "success": true,
-    "id": 1,
-    "model_parameters": {
-        "axis_count": 1,
-        "frequency": 16000.0,
-        "has_anomaly": 0,
-        "image_channel_count": 3,
-        "image_input_frames": 1,
-        "image_input_height": 96,
-        "image_input_width": 96,
-        "image_resize_mode": "fit-shortest",
-        "inferencing_engine": 4,
-        "input_features_count": 9216,
-        "interval_ms": 1.0,
-        "label_count": 1,
-        "labels": ["class1"],
-        "model_type": "classification",
-        "sensor": 3,
-        "slice_size": 2304,
-        "threshold": 0.5,
-        "use_continuous_mode": false
-    },
-    "project": {
-        "deploy_version": 1,
-        "id": 12345,
-        "name": "Project Name",
-        "owner": "Owner Name"
-    }
-}
-```
-
-#### 2. Inference
-For each inference request:
-
-##### ClassifyMessage (Runner -> Model):
-```json
-{
-    "classify": [0.1, 0.2, 0.3],
-    "id": 1,
-    "debug": false
-}
-```
-
-##### InferenceResponse (Model -> Runner):
-For classification models:
-```json
-{
-    "success": true,
-    "id": 2,
-    "result": {
-        "classification": {
-            "class1": 0.8,
-            "class2": 0.2
-        }
-    }
-}
-```
-
-For object detection models:
-```json
-{
-    "success": true,
-    "id": 2,
-    "result": {
-        "bounding_boxes": [
-            {
-                "label": "object1",
-                "value": 0.95,
-                "x": 100,
-                "y": 150,
-                "width": 50,
-                "height": 50
-            }
-        ],
-        "classification": {
-            "class1": 0.8,
-            "class2": 0.2
-        }
-    }
-}
-```
-
-For visual anomaly detection models:
-```json
-{
-    "success": true,
-    "id": 2,
-    "result": {
-        "visual_anomaly": {
-            "anomaly": 5.23,
-            "visual_anomaly_max": 7.89,
-            "visual_anomaly_mean": 4.12,
-            "visual_anomaly_grid": [
-                {
-                    "value": 0.955,
-                    "x": 24,
-                    "y": 40,
-                    "width": 8,
-                    "height": 16
-                }
-            ]
-        }
-    }
-}
-```
-
-#### 3. Error Response
-When errors occur:
-
-##### ErrorResponse (Model -> Runner):
-```json
-{
-    "success": false,
-    "error": "Error message",
-    "id": 2
-}
-```
-
-## Ingestion
-
-The ingestion module allows you to upload data to Edge Impulse using the [Edge Impulse Ingestion API](https://docs.edgeimpulse.com/reference/data-ingestion/ingestion-api).
-
-
-## Installation
-Add this to your `Cargo.toml`:
-```[dependencies]
-edge-impulse-runner = "1.0.0"
-```
+### Data Ingestion
+- Upload data to Edge Impulse projects
+- Support for multiple data categories:
+  - Training data
+  - Testing data
+  - Anomaly data
+- Handle various file formats:
+  - Images (JPG, PNG)
+  - Audio (WAV)
+  - Video (MP4, AVI)
+  - Sensor data (CBOR, JSON, CSV)
 
 ## Quick Start
 
-### Inference
+### EIM Mode (Default)
+
 ```rust
-use edge_impulse_runner::EimModel;
+use edge_impulse_runner::{EimModel, InferenceResult};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a new model instance
+    // Create a new model instance using EIM binary
     let mut model = EimModel::new("path/to/model.eim")?;
 
-    // Get model information
-    let params = model.parameters()?;
-    println!("Model type: {}", params.model_type);
+    // Prepare normalized features (e.g., image pixels, audio samples)
+    let features: Vec<f32> = vec![0.1, 0.2, 0.3];
 
-    // Check sensor type
-    match model.sensor_type()? {
-        SensorType::Camera => println!("Camera model"),
-        SensorType::Microphone => println!("Audio model"),
-        SensorType::Accelerometer => println!("Motion model"),
-        SensorType::Positional => println!("Position model"),
-        SensorType::Other => println!("Other sensor type"),
-    }
-
-    // Run inference with normalized features
-    let raw_features = vec![128, 128, 128];  // Example raw values
-    let features: Vec<f32> = raw_features.into_iter().map(|x| x as f32 / 255.0).collect();
+    // Run inference
     let result = model.infer(features, None)?;
 
-    // Handle the results based on model type
+    // Process results
     match result.result {
         InferenceResult::Classification { classification } => {
-            for (label, probability) in classification {
-                println!("{}: {:.2}", label, probability);
-            }
+            println!("Classification: {:?}", classification);
         }
         InferenceResult::ObjectDetection { bounding_boxes, classification } => {
-            for bbox in bounding_boxes {
-                println!("Found {} at ({}, {}) with confidence {:.2}",
-                    bbox.label, bbox.x, bbox.y, bbox.value);
-            }
+            println!("Detected objects: {:?}", bounding_boxes);
             if !classification.is_empty() {
-                println!("\nOverall classification:");
-                for (label, prob) in classification {
-                    println!("{}: {:.2}", label, prob);
-                }
+                println!("Classification: {:?}", classification);
             }
         }
         InferenceResult::VisualAnomaly { visual_anomaly_grid, visual_anomaly_max, visual_anomaly_mean, anomaly } => {
-            // Normalize the anomaly scores
             let (normalized_anomaly, normalized_max, normalized_mean, normalized_regions) =
                 model.normalize_visual_anomaly(
                     anomaly,
@@ -230,259 +72,161 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .map(|bbox| (bbox.value, bbox.x as u32, bbox.y as u32, bbox.width as u32, bbox.height as u32))
                         .collect::<Vec<_>>()
                 );
-
             println!("Anomaly score: {:.2}%", normalized_anomaly * 100.0);
-            println!("Maximum score: {:.2}%", normalized_max * 100.0);
-            println!("Mean score: {:.2}%", normalized_mean * 100.0);
-
-            // Print detected regions
-            for (value, x, y, w, h) in normalized_regions {
-                println!("Region: score={:.2}%, x={}, y={}, width={}, height={}",
-                    value * 100.0, x, y, w, h);
-            }
         }
     }
-
     Ok(())
 }
 ```
 
-### Ingestion
+### FFI Mode
+
 ```rust
-use edge_impulse_runner::ingestion::{Category, Ingestion, UploadOptions};
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create client with your API key
-    let ingestion = Ingestion::new("your-api-key").with_debug(); // Optional: enable debug output
-    // Upload a file (image, audio, video, etc.)
-    let result = ingestion
-        .upload_file(
-            "path/to/file.jpg",
-            Category::Training,
-            Some("label".to_string()),
-            Some(UploadOptions {
-                disallow_duplicates: true,
-                add_date_id: true,
-            }),
-        )
-        .await?;
-    println!("Upload successful: {}", result);
+use edge_impulse_runner::{EimModel, InferenceResult};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Create a new model instance using FFI (requires "ffi" feature)
+    let mut model = EimModel::new_ffi(false)?; // false = no debug
+
+    // Prepare normalized features
+    let features: Vec<f32> = vec![0.1, 0.2, 0.3];
+
+    // Run inference
+    let result = model.infer(features, None)?;
+
+    // Process results (same as EIM mode)
+    match result.result {
+        InferenceResult::Classification { classification } => {
+            println!("Classification: {:?}", classification);
+        }
+        // ... handle other result types
+    }
     Ok(())
 }
-
-```
-## Examples
-
-All examples are located in the `examples` directory and accept a `--debug` flag to enable debug output.
-
-These examples have only been tested on MacOS.
-
-### Basic Classification
-The simplest example allows you to run inference by providing the features array via command line:
-
-```bash
-# Format: comma-separated feature values
-cargo run --example basic_infer -- --model path/to/model.eim --features "0.1,0.2,0.3"
 ```
 
-The features array format depends on your model:
-- For audio models: Raw audio samples
-- For image models: RGB pixel values
-- For accelerometer: X, Y, Z values
-- For other sensors: Check your model's specifications
+## Cargo Features
 
-### Audio Classification
+The crate supports different backends through Cargo features:
 
-The repository includes an example that demonstrates audio classification using Edge Impulse models.
-
-To run the audio classification example:
-
-```bash
-cargo run --example audio_infer -- --model <path_to_model.eim> --audio <path_to_audio.wav> [--debug]
+```toml
+[dependencies]
+edge-impulse-runner = { version = "1.0", features = ["ffi"] }
 ```
 
-Example output:
-```
-Audio file specs: WavSpec { channels: 1, sample_rate: 16000, bits_per_sample: 16, sample_format: Int }
-Read 16000 samples from audio file
-Model expects 16000 samples
-Using 16000 samples for classification
-INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
-Classification result: InferenceResponse { success: true, id: 2, result: Classification { classification: {"noise": 0.96875, "no": 0.015625, "yes": 0.01953125} } }
-```
+### Available Features
 
-### Inference on Images
-The repository includes an example that demonstrates inference on images using Edge Impulse models:
+- **`eim`** (default): Enable EIM binary communication mode
+- **`ffi`**: Enable FFI direct mode (requires `edge-impulse-ffi-rs` dependency)
 
-To run the image inference example:
-```bash
-cargo run --example image_infer -- --model path/to/model.eim --image path/to/image.jpg
-```
+### Feature Combinations
 
-Example output on a object detection model:
-```
-Detected objects:
-----------------
-- mug (90.62%): x=24, y=40, width=8, height=16
-```
+- **Default**: Only EIM mode available
+- **`features = ["ffi"]`**: Only FFI mode available
+- **`features = ["eim", "ffi"]`**: Both modes available
 
-### Video inference
-The repository includes an example that demonstrates inference on video using Edge Impulse models:
+## Architecture
 
-To run the video example:
-```bash
-cargo run --example video_infer -- --model path/to/model.eim
-```
+### Backend Abstraction
 
-Example output for an object detection model:
-```
-Model Parameters:
-----------------
-ModelParameters {
-    axis_count: 1,
-    frequency: 0.0,
-    has_anomaly: 0,
-    image_channel_count: 3,
-    image_input_frames: 1,
-    image_input_height: 96,
-    image_input_width: 96,
-    image_resize_mode: "fit-shortest",
-    inferencing_engine: 4,
-    input_features_count: 9216,
-    interval_ms: 1.0,
-    label_count: 1,
-    labels: [
-        "mug",
-    ],
-    model_type: "constrained_object_detection",
-    sensor: 3,
-    slice_size: 2304,
-    threshold: 0.5,
-    use_continuous_mode: false,
+The library uses a trait-based backend abstraction that allows switching between different inference engines:
+
+```rust
+pub trait InferenceBackend: Send + Sync {
+    fn new(config: BackendConfig) -> Result<Self, EimError> where Self: Sized;
+    fn infer(&mut self, features: Vec<f32>, debug: Option<bool>) -> Result<InferenceResponse, EimError>;
+    fn parameters(&self) -> Result<&ModelParameters, EimError>;
+    // ... other methods
 }
-----------------
-
-Model expects 96x96 input with 3 channels (9216 features)
-Image format will be 96x96 with 3 channels
-Setting up pipeline for 96x96 input with 3 channels
-INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
-No objects detected
-Detected objects: [BoundingBox { label: "mug", value: 0.53125, x: 56, y: 48, width: 8, height: 8 }]
-Detected objects: [BoundingBox { label: "mug", value: 0.53125, x: 56, y: 40, width: 8, height: 8 }]
-Detected objects: [BoundingBox { label: "mug", value: 0.53125, x: 48, y: 40, width: 8, height: 8 }]
-Detected objects: [BoundingBox { label: "mug", value: 0.53125, x: 56, y: 40, width: 8, height: 8 }]
-Detected objects: [BoundingBox { label: "mug", value: 0.5625, x: 48, y: 40, width: 8, height: 8 }]
 ```
 
-### Upload Image
+### EIM Backend
+- Communicates with Edge Impulse binary files over Unix sockets
+- Supports all features including continuous mode and threshold configuration
+- Requires `.eim` files to be present
 
-```bash
-cargo run --example upload_image -- \
-  -a "ei_..." \
-  -c "training" \
-  -f ~/Downloads/mug.5jn81s9p.jpg \
-  --debug
-```
+### FFI Backend
+- Direct FFI calls to the Edge Impulse C++ SDK
+- Improved performance with no inter-process communication overhead
+- Requires the `edge-impulse-ffi-rs` crate as a dependency
+- Model must be compiled into the binary
 
-## Development
-### Running Tests
-```cargo test```
+## Performance Comparison
 
-### Error Handling
-The crate provides detailed error types through `EimError`:
+| Aspect | EIM Mode | FFI Mode |
+|--------|----------|----------|
+| **Startup Time** | Slower (process spawn + socket setup) | Faster (direct initialization) |
+| **Inference Latency** | Higher (IPC overhead) | Lower (direct calls) |
+| **Memory Usage** | Higher (separate process) | Lower (shared memory) |
+| **Deployment** | Requires `.eim` files | Requires compiled model |
+| **Flexibility** | Dynamic model loading | Static model compilation |
 
-- `FileError`: Issues with accessing the EIM file
-- `InvalidPath`: Invalid file path or extension
-- `ExecutionError`: Problems running the EIM model
-- `SocketError`: Unix socket communication issues
-- `JsonError`: JSON serialization/deserialization errors
-- `InvalidInput`: Invalid input features or parameters
-- `InvalidOperation`: Operation not supported by the model (e.g., continuous mode)
+## Migration Guide
 
-Example error handling:
+### From Previous Versions
+
+The API remains backward compatible. Existing code using `EimModel::new()` will continue to work with the EIM backend.
+
+### Adding FFI Support
+
+To add FFI support to existing projects:
+
+1. Add the FFI feature to your `Cargo.toml`:
+   ```toml
+   [dependencies]
+   edge-impulse-runner = { version = "1.0", features = ["eim", "ffi"] }
+   ```
+
+2. Use `EimModel::new_ffi()` instead of `EimModel::new()` for FFI mode:
+   ```rust
+   // EIM mode
+   let model = EimModel::new("model.eim")?;
+
+   // FFI mode
+   let model = EimModel::new_ffi(false)?;
+   ```
+
+## Prerequisites
+
+### EIM Mode
+- Edge Impulse model files (`.eim`)
+- Unix-like system (Linux, macOS)
+
+### FFI Mode
+- `edge-impulse-ffi-rs` crate dependency
+- Compiled model integrated into your binary
+
+Some functionality (particularly video capture) requires GStreamer to be installed:
+- **macOS**: Install both runtime and development packages from gstreamer.freedesktop.org
+- **Linux**: Install required packages (libgstreamer1.0-dev and related packages)
+
+## Error Handling
+
+The crate uses the `EimError` type to provide detailed error information:
+
 ```rust
 use edge_impulse_runner::{EimModel, EimError};
 
-fn main() {
-    match EimModel::new("path/to/model.eim") {
-        Ok(mut model) => {
-            match model.infer(vec![0.1, 0.2, 0.3], None) {
-                Ok(result) => println!("Classification successful"),
-                Err(EimError::InvalidInput(msg)) => println!("Invalid input: {}", msg),
-                Err(EimError::ExecutionError(msg)) => println!("Model execution failed: {}", msg),
-                Err(e) => println!("Other error: {}", e),
-            }
-        },
-        Err(EimError::FileError(e)) => println!("File error: {}", e),
-        Err(e) => println!("Error creating model: {}", e),
-    }
+match EimModel::new("model.eim") {
+    Ok(mut model) => {
+        match model.infer(vec![0.1, 0.2, 0.3], None) {
+            Ok(result) => println!("Success!"),
+            Err(EimError::InvalidInput(msg)) => println!("Invalid input: {}", msg),
+            Err(e) => println!("Other error: {}", e),
+        }
+    },
+    Err(e) => println!("Failed to load model: {}", e),
 }
 ```
 
-## Development Setup
+## Modules
 
-### Prerequisites
-
-> **⚠️ This project requires the Rust nightly toolchain due to transitive dependencies.**
->
-> Install and set up nightly for this project:
-> ```bash
-> rustup install nightly
-> rustup override set nightly
-> ```
-
-#### 1. Install Rust
-Install Rust using rustup (recommended method):
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-Follow the on-screen instructions and restart your terminal. Verify the installation with:
-```bash
-rustc --version
-cargo --version
-```
-
-#### 2. GStreamer (Optional)
-GStreamer is only required if you want to run the video-related examples (like `video_infer`). It is not needed for developing the library or running other examples.
-
-If you want to run the video examples:
-
-##### macOS
-Download and install both packages:
-- [Runtime installer](https://gstreamer.freedesktop.org/data/pkg/osx/1.24.12/gstreamer-1.0-1.24.12-universal.pkg)
-- [Development installer](https://gstreamer.freedesktop.org/data/pkg/osx/1.24.12/gstreamer-1.0-devel-1.24.12-universal.pkg)
-
-##### Ubuntu/Debian
-```bash
-sudo apt-get update
-sudo apt-get install -y \
-    libgstreamer1.0-dev \
-    libgstreamer-plugins-base1.0-dev \
-    libgstreamer-plugins-bad1.0-dev \
-    gstreamer1.0-plugins-base \
-    gstreamer1.0-plugins-good \
-    gstreamer1.0-plugins-bad \
-    gstreamer1.0-plugins-ugly \
-    gstreamer1.0-libav \
-    gstreamer1.0-tools
-```
-
-##### Other Linux Distributions
-For other Linux distributions, please refer to the [official GStreamer installation instructions](https://gstreamer.freedesktop.org/documentation/installing/index.html).
-
-> **Note**: Windows support is currently untested.
-
-### Verifying GStreamer Installation
-If you installed GStreamer, you can verify your installation by running:
-```bash
-gst-launch-1.0 --version
-```
-
-If you see version information, GStreamer is correctly installed.
-
-## Acknowledgments
-This crate is designed to work with Edge Impulse's machine learning models. For more information about Edge Impulse and their ML deployment solutions, visit [Edge Impulse](https://edgeimpulse.com/).
-
+- `error`: Error types and handling
+- `inference`: Model management and inference functionality
+- `backends`: Backend abstraction and implementations
+- `ingestion`: Data upload and project management
+- `types`: Common types and parameters
 
 ## License
-This project is licensed under the BSD 3-Clause Clear License - see the LICENSE file for details.
+
+BSD-3-Clause

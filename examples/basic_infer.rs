@@ -4,25 +4,29 @@
 //! It accepts raw feature data as a comma-separated string and runs inference using the specified model.
 //!
 //! The program will:
-//! 1. Load an Edge Impulse model
+//! 1. Load an Edge Impulse model (EIM file or FFI mode)
 //! 2. Parse input features from a string
 //! 3. Run inference on the data
 //! 4. Output classification results with probabilities
 //!
 //! Usage:
+//!   # EIM mode (requires model file)
 //!   cargo run --example basic_infer -- --model <path_to_model> --features "0.1,0.2,..." [--debug]
+//!
+//!   # FFI mode (no model file needed)
+//!   cargo run --example basic_infer --features ffi -- --features "0.1,0.2,..." [--debug]
 
 use clap::Parser;
 use edge_impulse_runner::types::ModelThreshold;
-use edge_impulse_runner::{EimModel, InferenceResult};
+use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Path to the .eim model file
+    /// Path to the .eim model file (not needed for FFI mode)
     #[arg(short, long)]
-    model: PathBuf,
+    model: Option<PathBuf>,
 
     /// Raw features string (comma-separated float values)
     #[arg(short, long, allow_hyphen_values = true)]
@@ -31,6 +35,10 @@ struct Args {
     /// Enable debug output
     #[arg(short, long, default_value_t = false)]
     debug: bool,
+
+    /// Use FFI mode instead of EIM mode
+    #[arg(long, default_value_t = false)]
+    ffi: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -43,19 +51,58 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|s| s.trim().parse::<f32>().expect("Failed to parse feature"))
         .collect();
 
-    // Adjust path to be relative to project root if not absolute
-    let model_path = if !args.model.is_absolute() {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(&args.model)
+    // Create model instance based on mode
+    let mut model = if args.ffi {
+        // FFI mode - no model file needed
+        println!("Using FFI mode");
+        let model = EdgeImpulseModel::new_ffi(args.debug)?;
+        #[cfg(feature = "ffi")]
+        {
+            let metadata = edge_impulse_ffi_rs::ModelMetadata::get();
+            println!("\nModel Metadata:");
+            println!("===============" );
+            println!("Project ID: {}", metadata.project_id);
+            println!("Project Owner: {}", metadata.project_owner);
+            println!("Project Name: {}", metadata.project_name);
+            println!("Deploy Version: {}", metadata.deploy_version);
+            println!("Model Type: {}", if metadata.has_object_detection { "Object Detection" } else { "Classification" });
+            println!("Input Dimensions: {}x{}x{}", metadata.input_width, metadata.input_height, metadata.input_frames);
+            println!("Input Features: {}", metadata.input_features_count);
+            println!("Label Count: {}", metadata.label_count);
+            println!("Sensor Type: {}", match metadata.sensor {
+                1 => "Microphone",
+                2 => "Accelerometer",
+                3 => "Camera",
+                4 => "Positional",
+                _ => "Unknown"
+            });
+            println!("Inferencing Engine: {}", match metadata.inferencing_engine {
+                1 => "uTensor",
+                2 => "TensorFlow Lite",
+                3 => "CubeAI",
+                4 => "TensorFlow Lite Full",
+                _ => "Other"
+            });
+            println!("Has Anomaly Detection: {}", metadata.has_anomaly);
+            println!("Has Object Tracking: {}", metadata.has_object_tracking);
+            println!("===============\n");
+        }
+        model
     } else {
-        args.model
-    };
+        // EIM mode - model file required
+        let model_path = args.model.ok_or("Model path is required for EIM mode")?;
 
-    // Create model instance with optional debug output
-    let mut model = if args.debug {
-        println!("Loading model from: {}", model_path.display());
-        EimModel::new(&model_path)?
-    } else {
-        EimModel::new(&model_path)?
+        // Adjust path to be relative to project root if not absolute
+        let model_path = if !model_path.is_absolute() {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(&model_path)
+        } else {
+            model_path
+        };
+
+        if args.debug {
+            println!("Loading model from: {}", model_path.display());
+        }
+        EdgeImpulseModel::new(&model_path)?
     };
 
     // Run inference
