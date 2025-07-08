@@ -1,5 +1,14 @@
 # Edge Impulse Runner for Rust
 
+[![Edge Impulse Tests](https://github.com/edgeimpulse/edge-impulse-runner-rs/actions/workflows/edge-impulse-runner.yml/badge.svg)](https://github.com/edgeimpulse/edge-impulse-runner-rs/actions/workflows/edge_impulse_runner.yml)
+[![Docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://edgeimpulse.github.io/edge-impulse-runner-rs/)
+
+> **⚠️ Note: This crate requires the Rust nightly toolchain due to transitive dependencies.**
+>
+> To build and run, you must:
+> 1. Install nightly: `rustup install nightly`
+> 2. Set nightly for this project: `rustup override set nightly`
+
 A Rust library for running Edge Impulse Linux models with support for both EIM binary communication and direct FFI calls.
 
 ## Features
@@ -33,6 +42,14 @@ A Rust library for running Edge Impulse Linux models with support for both EIM b
   - Audio (WAV)
   - Video (MP4, AVI)
   - Sensor data (CBOR, JSON, CSV)
+
+## Installation
+
+Add this to your `Cargo.toml`:
+```toml
+[dependencies]
+edge-impulse-runner = "1.0.0"
+```
 
 ## Quick Start
 
@@ -160,6 +177,148 @@ pub trait InferenceBackend: Send + Sync {
 | **Memory Usage** | Higher (separate process) | Lower (shared memory) |
 | **Deployment** | Requires `.eim` files | Requires compiled model |
 | **Flexibility** | Dynamic model loading | Static model compilation |
+
+## Inference Communication Protocol
+
+The Edge Impulse Inference Runner uses a Unix socket-based IPC mechanism to communicate with the model process. The protocol is JSON-based and follows a request-response pattern.
+
+### Protocol Messages
+
+#### 1. Initialization
+When a new model is created, the following sequence occurs:
+
+##### HelloMessage (Runner -> Model):
+```json
+{
+    "hello": 1,
+    "id": 1
+}
+```
+
+##### ModelInfo Response (Model -> Runner):
+```json
+{
+    "success": true,
+    "id": 1,
+    "model_parameters": {
+        "axis_count": 1,
+        "frequency": 16000.0,
+        "has_anomaly": 0,
+        "image_channel_count": 3,
+        "image_input_frames": 1,
+        "image_input_height": 96,
+        "image_input_width": 96,
+        "image_resize_mode": "fit-shortest",
+        "inferencing_engine": 4,
+        "input_features_count": 9216,
+        "interval_ms": 1.0,
+        "label_count": 1,
+        "labels": ["class1"],
+        "model_type": "classification",
+        "sensor": 3,
+        "slice_size": 2304,
+        "threshold": 0.5,
+        "use_continuous_mode": false
+    },
+    "project": {
+        "deploy_version": 1,
+        "id": 12345,
+        "name": "Project Name",
+        "owner": "Owner Name"
+    }
+}
+```
+
+#### 2. Inference
+For each inference request:
+
+##### ClassifyMessage (Runner -> Model):
+```json
+{
+    "classify": [0.1, 0.2, 0.3],
+    "id": 1,
+    "debug": false
+}
+```
+
+##### InferenceResponse (Model -> Runner):
+For classification models:
+```json
+{
+    "success": true,
+    "id": 2,
+    "result": {
+        "classification": {
+            "class1": 0.8,
+            "class2": 0.2
+        }
+    }
+}
+```
+
+For object detection models:
+```json
+{
+    "success": true,
+    "id": 2,
+    "result": {
+        "bounding_boxes": [
+            {
+                "label": "object1",
+                "value": 0.95,
+                "x": 100,
+                "y": 150,
+                "width": 50,
+                "height": 50
+            }
+        ],
+        "classification": {
+            "class1": 0.8,
+            "class2": 0.2
+        }
+    }
+}
+```
+
+For visual anomaly detection models:
+```json
+{
+    "success": true,
+    "id": 2,
+    "result": {
+        "visual_anomaly": {
+            "anomaly": 5.23,
+            "visual_anomaly_max": 7.89,
+            "visual_anomaly_mean": 4.12,
+            "visual_anomaly_grid": [
+                {
+                    "value": 0.955,
+                    "x": 24,
+                    "y": 40,
+                    "width": 8,
+                    "height": 16
+                }
+            ]
+        }
+    }
+}
+```
+
+#### 3. Error Response
+When errors occur:
+
+##### ErrorResponse (Model -> Runner):
+```json
+{
+    "success": false,
+    "error": "Error message",
+    "id": 2
+}
+```
+
+## Ingestion
+
+The ingestion module allows you to upload data to Edge Impulse using the [Edge Impulse Ingestion API](https://docs.edgeimpulse.com/reference/data-ingestion/ingestion-api).
 
 ## Prerequisites
 
