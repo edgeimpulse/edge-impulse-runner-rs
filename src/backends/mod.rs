@@ -72,6 +72,15 @@ pub fn create_backend(config: BackendConfig) -> Result<Box<dyn InferenceBackend>
     match config {
         #[cfg(feature = "eim")]
         BackendConfig::Eim { path, socket_path } => {
+            // Validate file extension for EIM backend
+            if let Some(ext) = path.extension() {
+                if ext != "eim" {
+                    return Err(EimError::InvalidPath);
+                }
+            } else {
+                return Err(EimError::InvalidPath);
+            }
+
             use eim::EimBackend;
             Ok(Box::new(EimBackend::new(BackendConfig::Eim {
                 path,

@@ -55,7 +55,7 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'cat {}'"#,
         let socket_path = temp_dir.path().join("test.socket");
 
         // Test with a non-existent file
-        let result = EdgeImpulseModel::new_with_socket("unknown.eim", &socket_path);
+        let result = EdgeImpulseModel::new_with_socket(std::path::Path::new("unknown.eim"), socket_path.as_path());
         match result {
             Err(EimError::ExecutionError(msg)) if msg.contains("No such file") => (),
             other => panic!("Expected ExecutionError for missing file, got {:?}", other),
@@ -68,7 +68,7 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'cat {}'"#,
         let temp_file = std::env::temp_dir().join("test.txt");
         std::fs::write(&temp_file, "dummy content").unwrap();
 
-        let result = EimModel::new(&temp_file);
+        let result = EdgeImpulseModel::new(temp_file.as_path());
         match result {
             Err(EimError::InvalidPath) => (),
             _ => panic!("Expected InvalidPath when file has wrong extension"),
@@ -100,7 +100,7 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'cat {}'"#,
         std::fs::rename(&mock_path, &mock_path_with_eim).unwrap();
 
         // Test the connection with the custom socket path
-        let result = EimModel::new_with_socket(&mock_path_with_eim, &socket_path);
+        let result = EdgeImpulseModel::new_with_socket(mock_path_with_eim.as_path(), socket_path.as_path());
         assert!(
             result.is_ok(),
             "Failed to create EIM model: {:?}",
@@ -140,7 +140,7 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'cat {}'"#,
         }
 
         // Test that we get the expected timeout error
-        let result = EimModel::new_with_socket(&model_path, &socket_path);
+        let result = EdgeImpulseModel::new_with_socket(model_path.as_path(), socket_path.as_path());
         assert!(
             matches!(result,
                 Err(EimError::SocketError(ref msg)) if msg.contains("Timeout waiting for socket")

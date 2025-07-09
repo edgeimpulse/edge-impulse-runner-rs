@@ -36,11 +36,11 @@
 //!
 //! ### Basic Classification
 //! ```no_run
-//! use edge_impulse_runner::{EimModel, InferenceResult};
+//! use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // Create a new model instance
-//!     let mut model = EimModel::new("path/to/model.eim")?;
+//!     let mut model = EdgeImpulseModel::new("path/to/model.eim")?;
 //!
 //!     // Prepare normalized features (e.g., image pixels, audio samples)
 //!     let features: Vec<f32> = vec![0.1, 0.2, 0.3];
@@ -135,10 +135,10 @@
 //!
 //! The crate uses the `EimError` type to provide detailed error information:
 //! ```no_run
-//! use edge_impulse_runner::{EimModel, EimError};
+//! use edge_impulse_runner::{EdgeImpulseModel, EimError};
 //!
 //! // Match on model creation
-//! match EimModel::new("model.eim") {
+//! match EdgeImpulseModel::new("model.eim") {
 //!     Ok(mut model) => {
 //!         // Match on classification
 //!         match model.infer(vec![0.1, 0.2, 0.3], None) {

@@ -139,8 +139,8 @@ impl EimBackend {
                 }
             }
         }
-        Err(EimError::ExecutionError(format!(
-            "Failed to connect to socket {} within timeout",
+        Err(EimError::SocketError(format!(
+            "Timeout waiting for socket {} to become available",
             socket_path.display()
         )))
     }
