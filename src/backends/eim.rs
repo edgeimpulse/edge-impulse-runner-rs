@@ -84,8 +84,8 @@ impl EimBackend {
         let socket = Self::connect_with_retry(&socket_path, Duration::from_secs(10))?;
 
         let mut backend = Self {
-            path: path,
-            socket_path: socket_path,
+            path,
+            socket_path,
             tempdir: Some(tempdir),
             socket,
             debug: false,
@@ -134,7 +134,7 @@ impl EimBackend {
                     return Ok(socket);
                 }
                 Err(e) => {
-                    println!("Connection attempt failed: {}, retrying...", e);
+                    println!("Connection attempt failed: {e}, retrying...");
                     std::thread::sleep(Duration::from_millis(100));
                 }
             }
@@ -155,7 +155,7 @@ impl EimBackend {
         let hello_json = serde_json::to_string(&hello)
             .map_err(|e| EimError::InvalidOperation(format!("Failed to serialize hello: {e}")))?;
 
-        self.debug_message(&format!("Sending hello: {}", hello_json));
+        self.debug_message(&format!("Sending hello: {hello_json}"));
 
         // Send the message
         self.socket
@@ -238,8 +238,7 @@ impl EimBackend {
                     response_json.trim()
                 );
                 return Err(EimError::InvalidOperation(format!(
-                    "Failed to parse classify response: {}",
-                    e
+                    "Failed to parse classify response: {e}"
                 )));
             }
         };

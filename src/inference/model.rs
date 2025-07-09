@@ -41,7 +41,7 @@ impl EdgeImpulseModel {
         };
         let mut backend = create_backend(config)?;
         if debug {
-            backend.set_debug_callback(Box::new(|msg| println!("[DEBUG] {}", msg)));
+            backend.set_debug_callback(Box::new(|msg| println!("[DEBUG] {msg}")));
         }
         Ok(Self { backend })
     }
@@ -51,7 +51,7 @@ impl EdgeImpulseModel {
         let config = BackendConfig::Ffi { debug };
         let mut backend = create_backend(config)?;
         if debug {
-            backend.set_debug_callback(Box::new(|msg| println!("[DEBUG] {}", msg)));
+            backend.set_debug_callback(Box::new(|msg| println!("[DEBUG] {msg}")));
         }
         Ok(Self { backend })
     }
