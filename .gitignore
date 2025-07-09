@@ -1,3 +1,8 @@
 /target
 *.eim
 *.json
+
+# FFI library files (but keep the directory)
+lib/*.a
+lib/*.so
+lib/*.dylib

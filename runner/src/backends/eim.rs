@@ -133,8 +133,7 @@ impl EimBackend {
                     println!("Successfully connected to socket");
                     return Ok(socket);
                 }
-                Err(e) => {
-                    println!("Connection attempt failed: {e}, retrying...");
+                Err(_e) => {
                     std::thread::sleep(Duration::from_millis(100));
                 }
             }

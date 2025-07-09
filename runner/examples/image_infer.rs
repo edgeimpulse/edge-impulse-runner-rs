@@ -19,7 +19,7 @@ use std::error::Error;
 use std::time::Instant;
 
 #[cfg(feature = "ffi")]
-use edge_impulse_ffi_rs::ModelMetadata;
+// use edge_impulse_ffi_rs::ModelMetadata;
 
 /// Command line parameters for the image classification example
 #[derive(Parser, Debug)]
@@ -101,7 +101,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         // Print model metadata for FFI mode
         #[cfg(feature = "ffi")]
         {
-            let metadata = ModelMetadata::get();
+            let metadata = edge_impulse_ffi_rs::ModelMetadata::get();
             println!("\nModel Metadata:");
             println!("===============");
             println!("Project ID: {}", metadata.project_id);

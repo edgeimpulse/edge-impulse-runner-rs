@@ -163,6 +163,7 @@ pub mod error;
 pub mod inference;
 pub mod ingestion;
 pub mod types;
+pub mod ffi;
 
 pub use inference::messages::{InferenceResponse, InferenceResult};
 

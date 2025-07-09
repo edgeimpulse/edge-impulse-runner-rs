@@ -5,7 +5,7 @@ use crate::types::{
     BoundingBox, ModelParameters, ModelThreshold, RunnerHelloHasAnomaly, SensorType,
     VisualAnomalyResult,
 };
-use edge_impulse_ffi_rs::{EdgeImpulseClassifier, ModelMetadata, Signal};
+use crate::ffi::{EdgeImpulseClassifier, ModelMetadata, Signal};
 use std::sync::Arc;
 
 /// FFI backend implementation using Edge Impulse FFI bindings

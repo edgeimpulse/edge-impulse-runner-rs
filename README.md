@@ -1,15 +1,97 @@
-# Edge Impulse Runner for Rust
+# Edge Impulse Runner Rust Workspace
 
 [![Edge Impulse Tests](https://github.com/edgeimpulse/edge-impulse-runner-rs/actions/workflows/edge-impulse-runner.yml/badge.svg)](https://github.com/edgeimpulse/edge-impulse-runner-rs/actions/workflows/edge_impulse_runner.yml)
 [![Docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://edgeimpulse.github.io/edge-impulse-runner-rs/)
 
-> **⚠️ Note: This crate requires the Rust nightly toolchain due to transitive dependencies.**
+> **⚠️ Note: This workspace requires the Rust nightly toolchain due to transitive dependencies.**
 >
 > To build and run, you must:
 > 1. Install nightly: `rustup install nightly`
 > 2. Set nightly for this project: `rustup override set nightly`
 
-A Rust library for running Edge Impulse Linux models with support for both EIM binary communication and direct FFI calls.
+---
+
+## Workspace Structure
+
+This repository is a Cargo workspace containing:
+
+- **runner/**: The main `edge-impulse-runner` Rust library for running Edge Impulse models (EIM and FFI modes).
+- **ffi/**: The `edge-impulse-ffi-rs` crate, providing Rust FFI bindings to the Edge Impulse C++ SDK. Used when building the runner with the `ffi` feature.
+
+---
+
+## Building
+
+From the repository root, you can build either mode:
+
+### EIM Mode (default, no FFI)
+```sh
+cargo build -p edge-impulse-runner
+```
+
+### FFI Mode (direct C++ SDK integration)
+```sh
+cargo build -p edge-impulse-runner --features ffi
+```
+
+This will automatically build the FFI crate and link it to the runner.
+
+---
+
+## Running Examples
+
+This workspace contains examples in both the runner and FFI crates.
+To run an example, use the following command from the workspace root:
+
+### Runner crate examples
+
+```sh
+cargo run -p edge-impulse-runner --example <example_name> -- [example args...]
+```
+
+For example, to run the `video_infer` example:
+```sh
+cargo run -p edge-impulse-runner --example video_infer -- --model /path/to/model.eim
+```
+
+### FFI crate examples
+
+```sh
+cargo run -p edge-impulse-ffi-rs --example <example_name> -- [example args...]
+```
+
+For example, to run the (renamed) FFI example:
+```sh
+cargo run -p edge-impulse-ffi-rs --example <renamed_example> -- [example args...]
+```
+
+**Note:**
+- Use `cargo run -p <package> --example <example_name> -- [args...]` to avoid ambiguity when multiple crates have examples with the same name.
+- The `--features ffi` flag may be required for FFI mode.
+
+---
+
+## Using the FFI Crate
+
+To use FFI mode, you must:
+1. Place your Edge Impulse exported C++ model (including `edge-impulse-sdk/`, `model-parameters/`, etc.) in the `ffi/model/` directory.
+2. Build the workspace with the `ffi` feature as shown above.
+
+For advanced build flags, platform-specific instructions, and details on how the FFI build system works, see [`ffi/README.md`](ffi/README.md).
+
+---
+
+## Example Usage
+
+See the `runner/README.md` or the documentation for example code using both EIM and FFI modes.
+
+---
+
+## Migration and More
+
+- For migration from 1.x to 2.x, see the [Migration Guide](#migration-from-100-to-200) below.
+- For FFI integration, see [`ffi/README.md`](ffi/README.md).
+- For more details on the runner API, see the documentation or `runner/` source.
 
 ## Features
 
@@ -177,6 +259,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### FFI Mode
 
+**⚠️ Important**: FFI mode requires the `edge-impulse-ffi-rs` crate which provides Rust bindings to the Edge Impulse C++ SDK. You have several options:
+
+1. **Use the official repository** (recommended for most users):
+   ```toml
+   [dependencies]
+   edge-impulse-runner = { version = "2.0.0", features = ["ffi"] }
+   edge-impulse-ffi-rs = { git = "https://github.com/edgeimpulse/edge-impulse-ffi-rs" }
+   ```
+
+2. **Generate your own FFI bindings** (for custom models):
+   - Clone [edge-impulse-ffi-rs](https://github.com/edgeimpulse/edge-impulse-ffi-rs)
+   - Replace the `model/` folder with your Edge Impulse exported C++ model
+   - Build and use the generated crate locally
+
+3. **Link against compiled library** (for advanced users):
+   - Build `edge-impulse-ffi-rs` separately to generate the static/dynamic library
+   - Link your application against the compiled library
+   - This approach provides more control over the build process
+
 ```rust
 use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
 
@@ -207,7 +308,7 @@ The crate supports different backends through Cargo features:
 
 ```toml
 [dependencies]
-edge-impulse-runner = { version = "1.0", features = ["ffi"] }
+edge-impulse-runner = { version = "2.0.0", features = ["ffi"] }
 ```
 
 ### Available Features
@@ -406,8 +507,9 @@ The ingestion module allows you to upload data to Edge Impulse using the [Edge I
 - Unix-like system (Linux, macOS)
 
 ### FFI Mode
-- `edge-impulse-ffi-rs` crate dependency
+- `edge-impulse-ffi-rs` crate dependency (available from [GitHub](https://github.com/edgeimpulse/edge-impulse-ffi-rs))
 - Compiled model integrated into your binary
+- For custom models, you can generate your own FFI bindings using the `edge-impulse-ffi-rs` repository as a template
 
 Some functionality (particularly video capture) requires GStreamer to be installed:
 - **macOS**: Install both runtime and development packages from gstreamer.freedesktop.org
