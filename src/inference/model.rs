@@ -34,10 +34,7 @@ impl EdgeImpulseModel {
     }
 
     /// Create a new model instance using EIM backend with debug output
-    pub fn new_with_debug<P: AsRef<Path>>(
-        model_path: P,
-        debug: bool,
-    ) -> Result<Self, EimError> {
+    pub fn new_with_debug<P: AsRef<Path>>(model_path: P, debug: bool) -> Result<Self, EimError> {
         let config = BackendConfig::Eim {
             path: model_path.as_ref().to_path_buf(),
             socket_path: None,
@@ -91,7 +88,8 @@ impl EdgeImpulseModel {
         mean: f32,
         regions: &[(f32, u32, u32, u32, u32)],
     ) -> VisualAnomalyResult {
-        self.backend.normalize_visual_anomaly(anomaly, max, mean, regions)
+        self.backend
+            .normalize_visual_anomaly(anomaly, max, mean, regions)
     }
 }
 

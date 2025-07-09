@@ -326,8 +326,13 @@ async fn initialize_model(
     debug: bool,
     thresholds: Option<&str>,
     ffi_mode: bool,
-) -> Result<(Arc<Mutex<EdgeImpulseModel>>, edge_impulse_runner::ModelParameters), Box<dyn std::error::Error>>
-{
+) -> Result<
+    (
+        Arc<Mutex<EdgeImpulseModel>>,
+        edge_impulse_runner::ModelParameters,
+    ),
+    Box<dyn std::error::Error>,
+> {
     let model_instance = if ffi_mode {
         // FFI mode - no model file needed
         println!("Using FFI mode");
@@ -336,29 +341,45 @@ async fn initialize_model(
         {
             let metadata = edge_impulse_ffi_rs::ModelMetadata::get();
             println!("\nModel Metadata:");
-            println!("===============" );
+            println!("===============");
             println!("Project ID: {}", metadata.project_id);
             println!("Project Owner: {}", metadata.project_owner);
             println!("Project Name: {}", metadata.project_name);
             println!("Deploy Version: {}", metadata.deploy_version);
-            println!("Model Type: {}", if metadata.has_object_detection { "Object Detection" } else { "Classification" });
-            println!("Input Dimensions: {}x{}x{}", metadata.input_width, metadata.input_height, metadata.input_frames);
+            println!(
+                "Model Type: {}",
+                if metadata.has_object_detection {
+                    "Object Detection"
+                } else {
+                    "Classification"
+                }
+            );
+            println!(
+                "Input Dimensions: {}x{}x{}",
+                metadata.input_width, metadata.input_height, metadata.input_frames
+            );
             println!("Input Features: {}", metadata.input_features_count);
             println!("Label Count: {}", metadata.label_count);
-            println!("Sensor Type: {}", match metadata.sensor {
-                1 => "Microphone",
-                2 => "Accelerometer",
-                3 => "Camera",
-                4 => "Positional",
-                _ => "Unknown"
-            });
-            println!("Inferencing Engine: {}", match metadata.inferencing_engine {
-                1 => "uTensor",
-                2 => "TensorFlow Lite",
-                3 => "CubeAI",
-                4 => "TensorFlow Lite Full",
-                _ => "Other"
-            });
+            println!(
+                "Sensor Type: {}",
+                match metadata.sensor {
+                    1 => "Microphone",
+                    2 => "Accelerometer",
+                    3 => "Camera",
+                    4 => "Positional",
+                    _ => "Unknown",
+                }
+            );
+            println!(
+                "Inferencing Engine: {}",
+                match metadata.inferencing_engine {
+                    1 => "uTensor",
+                    2 => "TensorFlow Lite",
+                    3 => "CubeAI",
+                    4 => "TensorFlow Lite Full",
+                    _ => "Other",
+                }
+            );
             println!("Has Anomaly Detection: {}", metadata.has_anomaly);
             println!("Has Object Tracking: {}", metadata.has_object_tracking);
             println!("===============\n");
@@ -372,7 +393,10 @@ async fn initialize_model(
 
     // Set thresholds if provided (not supported in current backend abstraction)
     if let Some(thresholds_str) = thresholds {
-        println!("Threshold setting not supported in current backend abstraction: {}", thresholds_str);
+        println!(
+            "Threshold setting not supported in current backend abstraction: {}",
+            thresholds_str
+        );
     }
 
     // Get model parameters
@@ -399,8 +423,13 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
     let params = VideoInferParams::parse();
 
     // Initialize Edge Impulse model and get parameters
-    let (model, model_params) =
-        initialize_model(params.model.as_deref(), params.debug, params.thresholds.as_deref(), params.ffi).await?;
+    let (model, model_params) = initialize_model(
+        params.model.as_deref(),
+        params.debug,
+        params.thresholds.as_deref(),
+        params.ffi,
+    )
+    .await?;
 
     let input_width = model_params.image_input_width;
     let input_height = model_params.image_input_height;

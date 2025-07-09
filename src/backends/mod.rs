@@ -28,10 +28,16 @@ pub enum BackendConfig {
 /// Trait for inference backends
 pub trait InferenceBackend: Send + Sync {
     /// Create a new backend instance
-    fn new(config: BackendConfig) -> Result<Self, EimError> where Self: Sized;
+    fn new(config: BackendConfig) -> Result<Self, EimError>
+    where
+        Self: Sized;
 
     /// Run inference on features
-    fn infer(&mut self, features: Vec<f32>, debug: Option<bool>) -> Result<InferenceResponse, EimError>;
+    fn infer(
+        &mut self,
+        features: Vec<f32>,
+        debug: Option<bool>,
+    ) -> Result<InferenceResponse, EimError>;
 
     /// Get model parameters
     fn parameters(&self) -> Result<&ModelParameters, EimError>;
@@ -67,7 +73,10 @@ pub fn create_backend(config: BackendConfig) -> Result<Box<dyn InferenceBackend>
         #[cfg(feature = "eim")]
         BackendConfig::Eim { path, socket_path } => {
             use eim::EimBackend;
-            Ok(Box::new(EimBackend::new(BackendConfig::Eim { path, socket_path })?))
+            Ok(Box::new(EimBackend::new(BackendConfig::Eim {
+                path,
+                socket_path,
+            })?))
         }
         #[cfg(feature = "ffi")]
         BackendConfig::Ffi { debug } => {
@@ -75,12 +84,12 @@ pub fn create_backend(config: BackendConfig) -> Result<Box<dyn InferenceBackend>
             Ok(Box::new(FfiBackend::new(BackendConfig::Ffi { debug })?))
         }
         #[cfg(not(feature = "eim"))]
-        BackendConfig::Eim { .. } => {
-            Err(EimError::InvalidOperation("EIM backend not enabled. Enable the 'eim' feature.".to_string()))
-        }
+        BackendConfig::Eim { .. } => Err(EimError::InvalidOperation(
+            "EIM backend not enabled. Enable the 'eim' feature.".to_string(),
+        )),
         #[cfg(not(feature = "ffi"))]
-        BackendConfig::Ffi { .. } => {
-            Err(EimError::InvalidOperation("FFI backend not enabled. Enable the 'ffi' feature.".to_string()))
-        }
+        BackendConfig::Ffi { .. } => Err(EimError::InvalidOperation(
+            "FFI backend not enabled. Enable the 'ffi' feature.".to_string(),
+        )),
     }
 }

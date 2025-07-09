@@ -1,6 +1,6 @@
 [package]
 name = "edge-impulse-runner"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2024"
 description = "A Rust library for running Edge Impulse Linux models"
 authors = ["Fernando Jiménez Moreno <fernando@edgeimpulse.com>"]

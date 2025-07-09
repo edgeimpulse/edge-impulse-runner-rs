@@ -1,8 +1,11 @@
 use super::{BackendConfig, InferenceBackend};
 use crate::error::EimError;
 use crate::inference::messages::InferenceResponse;
-use crate::types::{ModelParameters, SensorType, VisualAnomalyResult, RunnerHelloHasAnomaly, ModelThreshold, BoundingBox};
-use edge_impulse_ffi_rs::{EdgeImpulseClassifier, Signal, ModelMetadata};
+use crate::types::{
+    BoundingBox, ModelParameters, ModelThreshold, RunnerHelloHasAnomaly, SensorType,
+    VisualAnomalyResult,
+};
+use edge_impulse_ffi_rs::{EdgeImpulseClassifier, ModelMetadata, Signal};
 use std::sync::Arc;
 
 /// FFI backend implementation using Edge Impulse FFI bindings
@@ -19,13 +22,18 @@ impl FfiBackend {
     /// Create a new FFI backend
     pub fn new(config: BackendConfig) -> Result<Self, EimError> {
         let BackendConfig::Ffi { debug: _ } = config else {
-            return Err(EimError::InvalidOperation("Invalid config type for FFI backend".to_string()));
+            return Err(EimError::InvalidOperation(
+                "Invalid config type for FFI backend".to_string(),
+            ));
         };
 
         // Initialize the Edge Impulse classifier
         let mut classifier = EdgeImpulseClassifier::new();
         classifier.init().map_err(|e| {
-            EimError::InvalidOperation(format!("Failed to initialize Edge Impulse classifier: {}", e))
+            EimError::InvalidOperation(format!(
+                "Failed to initialize Edge Impulse classifier: {}",
+                e
+            ))
         })?;
 
         // Get model parameters from the compiled-in model metadata
@@ -117,7 +125,11 @@ impl InferenceBackend for FfiBackend {
         Self::new(config)
     }
 
-    fn infer(&mut self, features: Vec<f32>, debug: Option<bool>) -> Result<InferenceResponse, EimError> {
+    fn infer(
+        &mut self,
+        features: Vec<f32>,
+        debug: Option<bool>,
+    ) -> Result<InferenceResponse, EimError> {
         let debug_enabled = debug.unwrap_or(false);
 
         if debug_enabled {
@@ -130,23 +142,26 @@ impl InferenceBackend for FfiBackend {
         })?;
 
         // Run the classifier
-        let result = self.classifier.run_classifier(&signal, debug_enabled).map_err(|e| {
-            EimError::InvalidOperation(format!("Failed to run classifier: {}", e))
-        })?;
+        let result = self
+            .classifier
+            .run_classifier(&signal, debug_enabled)
+            .map_err(|e| EimError::InvalidOperation(format!("Failed to run classifier: {}", e)))?;
 
         // Extract results based on model type
         let inference_result = if self.parameters.model_type == "object-detection" {
             // Object detection model
-            let bounding_boxes = result.bounding_boxes().into_iter().map(|bb| {
-                BoundingBox {
+            let bounding_boxes = result
+                .bounding_boxes()
+                .into_iter()
+                .map(|bb| BoundingBox {
                     label: bb.label,
                     value: bb.value,
                     x: bb.x as i32,
                     y: bb.y as i32,
                     width: bb.width as i32,
                     height: bb.height as i32,
-                }
-            }).collect();
+                })
+                .collect();
 
             crate::inference::messages::InferenceResult::ObjectDetection {
                 bounding_boxes,
@@ -154,7 +169,8 @@ impl InferenceBackend for FfiBackend {
             }
         } else {
             // Classification model
-            let classifications = result.classifications(self.parameters.label_count as usize)
+            let classifications = result
+                .classifications(self.parameters.label_count as usize)
                 .into_iter()
                 .map(|c| (c.label, c.value))
                 .collect();
@@ -209,13 +225,19 @@ impl InferenceBackend for FfiBackend {
         let normalized_max = 1.0;
         let normalized_mean = (mean / max).min(1.0).max(0.0);
 
-        let normalized_regions = regions.iter()
+        let normalized_regions = regions
+            .iter()
             .map(|&(value, x, y, w, h)| {
                 let normalized_value = (value / max).min(1.0).max(0.0);
                 (normalized_value, x, y, w, h)
             })
             .collect();
 
-        (normalized_anomaly, normalized_max, normalized_mean, normalized_regions)
+        (
+            normalized_anomaly,
+            normalized_max,
+            normalized_mean,
+            normalized_regions,
+        )
     }
 }

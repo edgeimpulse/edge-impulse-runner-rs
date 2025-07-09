@@ -2,10 +2,9 @@ pub mod messages;
 pub mod model;
 // Removed eim_original module - functionality moved to backends/eim.rs
 
-
 #[cfg(test)]
 mod tests {
-    use crate::{EimError, EdgeImpulseModel};
+    use crate::{EdgeImpulseModel, EimError};
     use std::env;
     use std::fs::File;
     use std::io::Write;

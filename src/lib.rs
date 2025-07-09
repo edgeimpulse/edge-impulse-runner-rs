@@ -158,11 +158,11 @@
 //! - `ingestion`: Data upload and project management
 //! - `types`: Common types and parameters
 
+pub mod backends;
 pub mod error;
 pub mod inference;
 pub mod ingestion;
 pub mod types;
-pub mod backends;
 
 pub use inference::messages::{InferenceResponse, InferenceResult};
 

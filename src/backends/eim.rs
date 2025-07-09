@@ -17,9 +17,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 use tempfile::{TempDir, tempdir};
 
-use crate::inference::messages::{
-    ClassifyMessage, HelloMessage, InferenceResult, ModelInfo,
-};
+use crate::inference::messages::{ClassifyMessage, HelloMessage, InferenceResult, ModelInfo};
 
 /// Debug callback type for receiving debug messages
 pub type DebugCallback = Box<dyn Fn(&str) + Send + Sync>;
@@ -56,7 +54,9 @@ impl EimBackend {
     /// Create a new EIM backend
     pub fn new(config: BackendConfig) -> Result<Self, EimError> {
         let BackendConfig::Eim { path, .. } = config else {
-            return Err(EimError::InvalidOperation("Invalid config type for EIM backend".to_string()));
+            return Err(EimError::InvalidOperation(
+                "Invalid config type for EIM backend".to_string(),
+            ));
         };
 
         // Always generate a temp socket path
@@ -70,13 +70,15 @@ impl EimBackend {
         Self::ensure_executable(&path)?;
 
         // Start the model process with the socket path as the first positional argument
-        println!("Starting EIM process: {} {}", path.display(), socket_path.display());
+        println!(
+            "Starting EIM process: {} {}",
+            path.display(),
+            socket_path.display()
+        );
         let process = std::process::Command::new(&path)
             .arg(&socket_path)
             .spawn()
-            .map_err(|e| {
-                EimError::ExecutionError(format!("Failed to start model process: {e}"))
-            })?;
+            .map_err(|e| EimError::ExecutionError(format!("Failed to start model process: {e}")))?;
 
         // Wait for the socket to be created and connect
         let socket = Self::connect_with_retry(&socket_path, Duration::from_secs(10))?;
@@ -173,8 +175,9 @@ impl EimBackend {
         self.debug_message(&format!("Received hello response: {}", response.trim()));
 
         // Parse the response
-        let model_info: ModelInfo = serde_json::from_str(&response)
-            .map_err(|e| EimError::InvalidOperation(format!("Failed to parse hello response: {e}")))?;
+        let model_info: ModelInfo = serde_json::from_str(&response).map_err(|e| {
+            EimError::InvalidOperation(format!("Failed to parse hello response: {e}"))
+        })?;
 
         self.model_info = Some(model_info.clone());
 
@@ -209,8 +212,9 @@ impl EimBackend {
             debug: None,
         };
 
-        let classify_json = serde_json::to_string(&classify)
-            .map_err(|e| EimError::InvalidOperation(format!("Failed to serialize classify: {e}")))?;
+        let classify_json = serde_json::to_string(&classify).map_err(|e| {
+            EimError::InvalidOperation(format!("Failed to serialize classify: {e}"))
+        })?;
 
         self.socket
             .write_all(classify_json.as_bytes())
@@ -221,15 +225,22 @@ impl EimBackend {
 
         let mut reader = BufReader::new(&self.socket);
         let mut response_json = String::new();
-        reader
-            .read_line(&mut response_json)
-            .map_err(|e| EimError::ExecutionError(format!("Failed to read classify response: {e}")))?;
+        reader.read_line(&mut response_json).map_err(|e| {
+            EimError::ExecutionError(format!("Failed to read classify response: {e}"))
+        })?;
 
         let response: InferenceResponse = match serde_json::from_str(&response_json) {
             Ok(r) => r,
             Err(e) => {
-                eprintln!("[EIM backend] Failed to parse classify response: {}\nRaw response: {}", e, response_json.trim());
-                return Err(EimError::InvalidOperation(format!("Failed to parse classify response: {}", e)));
+                eprintln!(
+                    "[EIM backend] Failed to parse classify response: {}\nRaw response: {}",
+                    e,
+                    response_json.trim()
+                );
+                return Err(EimError::InvalidOperation(format!(
+                    "Failed to parse classify response: {}",
+                    e
+                )));
             }
         };
 
@@ -242,7 +253,11 @@ impl InferenceBackend for EimBackend {
         EimBackend::new(config)
     }
 
-    fn infer(&mut self, features: Vec<f32>, _debug: Option<bool>) -> Result<InferenceResponse, EimError> {
+    fn infer(
+        &mut self,
+        features: Vec<f32>,
+        _debug: Option<bool>,
+    ) -> Result<InferenceResponse, EimError> {
         // Use classify and wrap in InferenceResponse
         let result = self.classify(&features)?;
         Ok(InferenceResponse {

@@ -108,24 +108,40 @@ fn main() -> Result<(), Box<dyn Error>> {
             println!("Project Owner: {}", metadata.project_owner);
             println!("Project Name: {}", metadata.project_name);
             println!("Deploy Version: {}", metadata.deploy_version);
-            println!("Model Type: {}", if metadata.has_object_detection { "Object Detection" } else { "Classification" });
-            println!("Input Dimensions: {}x{}x{}", metadata.input_width, metadata.input_height, metadata.input_frames);
+            println!(
+                "Model Type: {}",
+                if metadata.has_object_detection {
+                    "Object Detection"
+                } else {
+                    "Classification"
+                }
+            );
+            println!(
+                "Input Dimensions: {}x{}x{}",
+                metadata.input_width, metadata.input_height, metadata.input_frames
+            );
             println!("Input Features: {}", metadata.input_features_count);
             println!("Label Count: {}", metadata.label_count);
-            println!("Sensor Type: {}", match metadata.sensor {
-                1 => "Microphone",
-                2 => "Accelerometer",
-                3 => "Camera",
-                4 => "Positional",
-                _ => "Unknown"
-            });
-            println!("Inferencing Engine: {}", match metadata.inferencing_engine {
-                1 => "uTensor",
-                2 => "TensorFlow Lite",
-                3 => "CubeAI",
-                4 => "TensorFlow Lite Full",
-                _ => "Other"
-            });
+            println!(
+                "Sensor Type: {}",
+                match metadata.sensor {
+                    1 => "Microphone",
+                    2 => "Accelerometer",
+                    3 => "Camera",
+                    4 => "Positional",
+                    _ => "Unknown",
+                }
+            );
+            println!(
+                "Inferencing Engine: {}",
+                match metadata.inferencing_engine {
+                    1 => "uTensor",
+                    2 => "TensorFlow Lite",
+                    3 => "CubeAI",
+                    4 => "TensorFlow Lite Full",
+                    _ => "Other",
+                }
+            );
             println!("Has Anomaly Detection: {}", metadata.has_anomaly);
             println!("Has Object Tracking: {}", metadata.has_object_tracking);
             println!("===============\n");
@@ -225,7 +241,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let processing_duration = processing_start.elapsed();
 
     if args.debug {
-        println!("Image processing took: {:.2}ms", processing_duration.as_millis());
+        println!(
+            "Image processing took: {:.2}ms",
+            processing_duration.as_millis()
+        );
     }
 
     // Run inference with timing
