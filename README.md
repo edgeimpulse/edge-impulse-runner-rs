@@ -20,79 +20,6 @@ This repository is a Cargo workspace containing:
 
 ---
 
-## Building
-
-From the repository root, you can build either mode:
-
-### EIM Mode (default, no FFI)
-```sh
-cargo build -p edge-impulse-runner
-```
-
-### FFI Mode (direct C++ SDK integration)
-```sh
-cargo build -p edge-impulse-runner --features ffi
-```
-
-This will automatically build the FFI crate and link it to the runner.
-
----
-
-## Running Examples
-
-This workspace contains examples in both the runner and FFI crates.
-To run an example, use the following command from the workspace root:
-
-### Runner crate examples
-
-```sh
-cargo run -p edge-impulse-runner --example <example_name> -- [example args...]
-```
-
-For example, to run the `video_infer` example:
-```sh
-cargo run -p edge-impulse-runner --example video_infer -- --model /path/to/model.eim
-```
-
-### FFI crate examples
-
-```sh
-cargo run -p edge-impulse-ffi-rs --example <example_name> -- [example args...]
-```
-
-For example, to run the (renamed) FFI example:
-```sh
-cargo run -p edge-impulse-ffi-rs --example <renamed_example> -- [example args...]
-```
-
-**Note:**
-- Use `cargo run -p <package> --example <example_name> -- [args...]` to avoid ambiguity when multiple crates have examples with the same name.
-- The `--features ffi` flag may be required for FFI mode.
-
----
-
-## Using the FFI Crate
-
-To use FFI mode, you must:
-1. Place your Edge Impulse exported C++ model (including `edge-impulse-sdk/`, `model-parameters/`, etc.) in the `ffi/model/` directory.
-2. Build the workspace with the `ffi` feature as shown above.
-
-For advanced build flags, platform-specific instructions, and details on how the FFI build system works, see [`ffi/README.md`](ffi/README.md).
-
----
-
-## Example Usage
-
-See the `runner/README.md` or the documentation for example code using both EIM and FFI modes.
-
----
-
-## Migration and More
-
-- For migration from 1.x to 2.x, see the [Migration Guide](#migration-from-100-to-200) below.
-- For FFI integration, see [`ffi/README.md`](ffi/README.md).
-- For more details on the runner API, see the documentation or `runner/` source.
-
 ## Features
 
 ### Dual Backend Support
@@ -125,13 +52,205 @@ See the `runner/README.md` or the documentation for example code using both EIM 
   - Video (MP4, AVI)
   - Sensor data (CBOR, JSON, CSV)
 
+---
+
+## Building
+
+From the repository root, you can build either mode:
+
+### EIM Mode (default, no FFI)
+```sh
+cargo build -p edge-impulse-runner
+```
+
+### FFI Mode (direct C++ SDK integration)
+```sh
+cargo build -p edge-impulse-runner --features ffi
+```
+
+This will automatically build the FFI crate and link it to the runner.
+
+---
+
+## Running Examples
+
+This workspace contains examples in both the runner and FFI crates.
+
+### Runner Crate Examples
+
+The runner crate examples support both EIM and FFI modes:
+
+```sh
+# EIM mode examples (require model file)
+cargo run -p edge-impulse-runner --example basic_infer -- --model /path/to/model.eim --features "0.1,0.2,0.3"
+cargo run -p edge-impulse-runner --example image_infer -- --model /path/to/model.eim --image /path/to/image.png
+cargo run -p edge-impulse-runner --example audio_infer -- --model /path/to/model.eim --audio /path/to/audio.wav
+cargo run -p edge-impulse-runner --example video_infer -- --model /path/to/model.eim --video /path/to/video.mp4
+
+# FFI mode examples (no model file needed)
+cargo run -p edge-impulse-runner --example basic_infer -- --ffi --features "0.1,0.2,0.3"
+cargo run -p edge-impulse-runner --example image_infer -- --ffi --image /path/to/image.png
+cargo run -p edge-impulse-runner --example audio_infer -- --ffi --audio /path/to/audio.wav
+cargo run -p edge-impulse-runner --example video_infer -- --ffi --video /path/to/video.mp4
+```
+
+**Note**: FFI mode examples require the `ffi` feature to be enabled:
+```sh
+cargo run -p edge-impulse-runner --features ffi --example basic_infer -- --ffi --features "0.1,0.2,0.3"
+```
+
+### FFI Crate Examples
+
+The FFI crate contains standalone examples that work directly with the C++ SDK:
+
+```sh
+# Build and run FFI examples
+cargo run -p edge-impulse-ffi-rs --example ffi_image_infer -- --image /path/to/image.png
+```
+
+**Important**: For FFI mode, you must first set up your model in the `ffi/model/` directory. See the [FFI README](ffi/README.md) for detailed instructions on building FFI bindings.
+
+---
+
+## Using the FFI Crate
+
+To use FFI mode, you must:
+
+1. **Set up your model**: Place your Edge Impulse exported C++ model (including `edge-impulse-sdk/`, `model-parameters/`, etc.) in the `ffi/model/` directory.
+
+2. **Build the workspace with FFI feature**:
+   ```sh
+   cargo build -p edge-impulse-runner --features ffi
+   ```
+
+3. **Check the FFI README**: For advanced build flags, platform-specific instructions, and details on how the FFI build system works, see [`ffi/README.md`](ffi/README.md).
+
+---
+
 ## Installation
 
 Add this to your `Cargo.toml`:
+
 ```toml
 [dependencies]
 edge-impulse-runner = "2.0.0"
 ```
+
+For FFI mode, add the `ffi` feature:
+```toml
+[dependencies]
+edge-impulse-runner = { version = "2.0.0", features = ["ffi"] }
+```
+
+---
+
+## Quick Start
+
+### EIM Mode (Default)
+
+```rust
+use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Create a new model instance using EIM binary
+    let mut model = EdgeImpulseModel::new("path/to/model.eim")?;
+
+    // Prepare normalized features (e.g., image pixels, audio samples)
+    let features: Vec<f32> = vec![0.1, 0.2, 0.3];
+
+    // Run inference
+    let result = model.infer(features, None)?;
+
+    // Process results
+    match result.result {
+        InferenceResult::Classification { classification } => {
+            println!("Classification: {:?}", classification);
+        }
+        InferenceResult::ObjectDetection { bounding_boxes, classification } => {
+            println!("Detected objects: {:?}", bounding_boxes);
+            if !classification.is_empty() {
+                println!("Classification: {:?}", classification);
+            }
+        }
+        InferenceResult::VisualAnomaly { visual_anomaly_grid, visual_anomaly_max, visual_anomaly_mean, anomaly } => {
+            let (normalized_anomaly, normalized_max, normalized_mean, normalized_regions) =
+                model.normalize_visual_anomaly(
+                    anomaly,
+                    visual_anomaly_max,
+                    visual_anomaly_mean,
+                    &visual_anomaly_grid.iter()
+                        .map(|bbox| (bbox.value, bbox.x as u32, bbox.y as u32, bbox.width as u32, bbox.height as u32))
+                        .collect::<Vec<_>>()
+                );
+            println!("Anomaly score: {:.2}%", normalized_anomaly * 100.0);
+        }
+    }
+    Ok(())
+}
+```
+
+### FFI Mode
+
+```rust
+use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Create a new model instance using FFI (requires "ffi" feature)
+    let mut model = EdgeImpulseModel::new_ffi(false)?; // false = no debug
+
+    // Prepare normalized features
+    let features: Vec<f32> = vec![0.1, 0.2, 0.3];
+
+    // Run inference
+    let result = model.infer(features, None)?;
+
+    // Process results (same as EIM mode)
+    match result.result {
+        InferenceResult::Classification { classification } => {
+            println!("Classification: {:?}", classification);
+        }
+        // ... handle other result types
+    }
+    Ok(())
+}
+```
+
+---
+
+## Cargo Features
+
+The crate supports different backends through Cargo features:
+
+```toml
+[dependencies]
+edge-impulse-runner = { version = "2.0.0", features = ["ffi"] }
+```
+
+### Available Features
+
+- **`eim`** (default): Enable EIM binary communication mode
+- **`ffi`**: Enable FFI direct mode (requires `edge-impulse-ffi-rs` dependency)
+
+### Feature Combinations
+
+- **Default (`features = ["eim"]`)**: Only EIM mode available
+- **`features = ["ffi"]`**: Only FFI mode available
+
+**Note**: Only one backend should be enabled at a time. Enabling both features simultaneously is not supported and may cause conflicts.
+
+---
+
+## Performance Comparison
+
+| Aspect | EIM Mode | FFI Mode |
+|--------|----------|----------|
+| **Startup Time** | Slower (process spawn + socket setup) | Faster (direct initialization) |
+| **Inference Latency** | Higher (IPC overhead) | Lower (direct calls) |
+| **Memory Usage** | Higher (separate process) | Lower (shared memory) |
+| **Deployment** | Requires `.eim` files | Requires compiled model |
+| **Flexibility** | Dynamic model loading | Static model compilation |
+
+---
 
 ## Migration from 1.0.0 to 2.0.0
 
@@ -212,115 +331,45 @@ To use the new FFI mode:
 | Memory usage | ~50-100MB | ~20-40MB | **50% reduction** |
 | Deployment | Requires .eim files | Compiled into binary | **Simpler** |
 
-## Quick Start
+---
 
-### EIM Mode (Default)
+## Prerequisites
 
-```rust
-use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a new model instance using EIM binary
-    let mut model = EdgeImpulseModel::new("path/to/model.eim")?;
-
-    // Prepare normalized features (e.g., image pixels, audio samples)
-    let features: Vec<f32> = vec![0.1, 0.2, 0.3];
-
-    // Run inference
-    let result = model.infer(features, None)?;
-
-    // Process results
-    match result.result {
-        InferenceResult::Classification { classification } => {
-            println!("Classification: {:?}", classification);
-        }
-        InferenceResult::ObjectDetection { bounding_boxes, classification } => {
-            println!("Detected objects: {:?}", bounding_boxes);
-            if !classification.is_empty() {
-                println!("Classification: {:?}", classification);
-            }
-        }
-        InferenceResult::VisualAnomaly { visual_anomaly_grid, visual_anomaly_max, visual_anomaly_mean, anomaly } => {
-            let (normalized_anomaly, normalized_max, normalized_mean, normalized_regions) =
-                model.normalize_visual_anomaly(
-                    anomaly,
-                    visual_anomaly_max,
-                    visual_anomaly_mean,
-                    &visual_anomaly_grid.iter()
-                        .map(|bbox| (bbox.value, bbox.x as u32, bbox.y as u32, bbox.width as u32, bbox.height as u32))
-                        .collect::<Vec<_>>()
-                );
-            println!("Anomaly score: {:.2}%", normalized_anomaly * 100.0);
-        }
-    }
-    Ok(())
-}
-```
+### EIM Mode
+- Edge Impulse model files (`.eim`)
+- Unix-like system (Linux, macOS)
 
 ### FFI Mode
+- `edge-impulse-ffi-rs` crate dependency (available from [GitHub](https://github.com/edgeimpulse/edge-impulse-ffi-rs))
+- Compiled model integrated into your binary
+- For custom models, you can generate your own FFI bindings using the `edge-impulse-ffi-rs` repository as a template
 
-**⚠️ Important**: FFI mode requires the `edge-impulse-ffi-rs` crate which provides Rust bindings to the Edge Impulse C++ SDK. You have several options:
+Some functionality (particularly video capture) requires GStreamer to be installed:
+- **macOS**: Install both runtime and development packages from gstreamer.freedesktop.org
+- **Linux**: Install required packages (libgstreamer1.0-dev and related packages)
 
-1. **Use the official repository** (recommended for most users):
-   ```toml
-   [dependencies]
-   edge-impulse-runner = { version = "2.0.0", features = ["ffi"] }
-   edge-impulse-ffi-rs = { git = "https://github.com/edgeimpulse/edge-impulse-ffi-rs" }
-   ```
+---
 
-2. **Generate your own FFI bindings** (for custom models):
-   - Clone [edge-impulse-ffi-rs](https://github.com/edgeimpulse/edge-impulse-ffi-rs)
-   - Replace the `model/` folder with your Edge Impulse exported C++ model
-   - Build and use the generated crate locally
+## Error Handling
 
-3. **Link against compiled library** (for advanced users):
-   - Build `edge-impulse-ffi-rs` separately to generate the static/dynamic library
-   - Link your application against the compiled library
-   - This approach provides more control over the build process
+The crate uses the `EimError` type to provide detailed error information:
 
 ```rust
-use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
+use edge_impulse_runner::{EdgeImpulseModel, EimError};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a new model instance using FFI (requires "ffi" feature)
-    let mut model = EdgeImpulseModel::new_ffi(false)?; // false = no debug
-
-    // Prepare normalized features
-    let features: Vec<f32> = vec![0.1, 0.2, 0.3];
-
-    // Run inference
-    let result = model.infer(features, None)?;
-
-    // Process results (same as EIM mode)
-    match result.result {
-        InferenceResult::Classification { classification } => {
-            println!("Classification: {:?}", classification);
+match EdgeImpulseModel::new("model.eim") {
+    Ok(mut model) => {
+        match model.infer(vec![0.1, 0.2, 0.3], None) {
+            Ok(result) => println!("Success!"),
+            Err(EimError::InvalidInput(msg)) => println!("Invalid input: {}", msg),
+            Err(e) => println!("Other error: {}", e),
         }
-        // ... handle other result types
-    }
-    Ok(())
+    },
+    Err(e) => println!("Failed to load model: {}", e),
 }
 ```
 
-## Cargo Features
-
-The crate supports different backends through Cargo features:
-
-```toml
-[dependencies]
-edge-impulse-runner = { version = "2.0.0", features = ["ffi"] }
-```
-
-### Available Features
-
-- **`eim`** (default): Enable EIM binary communication mode
-- **`ffi`**: Enable FFI direct mode (requires `edge-impulse-ffi-rs` dependency)
-
-### Feature Combinations
-
-- **Default**: Only EIM mode available
-- **`features = ["ffi"]`**: Only FFI mode available
-- **`features = ["eim", "ffi"]`**: Both modes available
+---
 
 ## Architecture
 
@@ -348,19 +397,11 @@ pub trait InferenceBackend: Send + Sync {
 - Requires the `edge-impulse-ffi-rs` crate as a dependency
 - Model must be compiled into the binary
 
-## Performance Comparison
+---
 
-| Aspect | EIM Mode | FFI Mode |
-|--------|----------|----------|
-| **Startup Time** | Slower (process spawn + socket setup) | Faster (direct initialization) |
-| **Inference Latency** | Higher (IPC overhead) | Lower (direct calls) |
-| **Memory Usage** | Higher (separate process) | Lower (shared memory) |
-| **Deployment** | Requires `.eim` files | Requires compiled model |
-| **Flexibility** | Dynamic model loading | Static model compilation |
+## Inference Communication Protocol (EIM Mode)
 
-## Inference Communication Protocol
-
-The Edge Impulse Inference Runner uses a Unix socket-based IPC mechanism to communicate with the model process. The protocol is JSON-based and follows a request-response pattern.
+The Edge Impulse Inference Runner uses a Unix socket-based IPC mechanism to communicate with the model process in EIM mode. The protocol is JSON-based and follows a request-response pattern.
 
 ### Protocol Messages
 
@@ -496,43 +537,7 @@ When errors occur:
 }
 ```
 
-## Ingestion
-
-The ingestion module allows you to upload data to Edge Impulse using the [Edge Impulse Ingestion API](https://docs.edgeimpulse.com/reference/data-ingestion/ingestion-api).
-
-## Prerequisites
-
-### EIM Mode
-- Edge Impulse model files (`.eim`)
-- Unix-like system (Linux, macOS)
-
-### FFI Mode
-- `edge-impulse-ffi-rs` crate dependency (available from [GitHub](https://github.com/edgeimpulse/edge-impulse-ffi-rs))
-- Compiled model integrated into your binary
-- For custom models, you can generate your own FFI bindings using the `edge-impulse-ffi-rs` repository as a template
-
-Some functionality (particularly video capture) requires GStreamer to be installed:
-- **macOS**: Install both runtime and development packages from gstreamer.freedesktop.org
-- **Linux**: Install required packages (libgstreamer1.0-dev and related packages)
-
-## Error Handling
-
-The crate uses the `EimError` type to provide detailed error information:
-
-```rust
-use edge_impulse_runner::{EdgeImpulseModel, EimError};
-
-match EdgeImpulseModel::new("model.eim") {
-    Ok(mut model) => {
-        match model.infer(vec![0.1, 0.2, 0.3], None) {
-            Ok(result) => println!("Success!"),
-            Err(EimError::InvalidInput(msg)) => println!("Invalid input: {}", msg),
-            Err(e) => println!("Other error: {}", e),
-        }
-    },
-    Err(e) => println!("Failed to load model: {}", e),
-}
-```
+---
 
 ## Modules
 
@@ -541,6 +546,8 @@ match EdgeImpulseModel::new("model.eim") {
 - `backends`: Backend abstraction and implementations
 - `ingestion`: Data upload and project management
 - `types`: Common types and parameters
+
+---
 
 ## License
 
