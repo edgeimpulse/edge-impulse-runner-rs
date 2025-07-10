@@ -11,11 +11,14 @@
 
 ---
 
-## Features
+## Overview
 
-### Dual Backend Support
-- **EIM Mode** (default): Traditional socket-based communication with Edge Impulse binary files
-- **FFI Mode**: Direct FFI calls to the Edge Impulse C++ SDK for improved performance
+This Rust library provides two modes for running Edge Impulse models:
+
+- **EIM Mode (Default)**: Uses Edge Impulse's EIM (Edge Impulse Model) format for inference
+- **FFI Mode**: Uses direct C++ SDK integration via FFI bindings
+
+## Features
 
 ### Inference Capabilities
 - Run Edge Impulse models on Linux and MacOS
@@ -45,52 +48,69 @@
 
 ---
 
-## Building
+## Quick Start
 
-From the repository root, you can build either mode:
-
-### EIM Mode (default, no FFI)
+### EIM Mode (Default)
 ```sh
-cargo build -p edge-impulse-runner
+cargo build
+cargo run --example basic_infer -- --features "0.1,0.2,0.3"
 ```
 
-### FFI Mode (direct C++ SDK integration)
+### FFI Mode (C++ SDK Integration)
+Set your Edge Impulse project credentials and build:
+
 ```sh
 export EI_PROJECT_ID=12345
 export EI_API_KEY=ei_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-CLEAN_MODEL=1 cargo build -p edge-impulse-runner --features ffi
+cargo clean
+cargo build --features ffi
 ```
 
-This will automatically fetch your model C++ library, build the FFI crate to generate the Rust bindings and link it to the runner.
+This will automatically download your model from Edge Impulse and build the C++ SDK bindings.
+
+**Note:** The download process may take several minutes on the first build. Never commit your API key to version control.
+
+### Manual Model Setup (Not Supported with Remote FFI Crate)
+Manual mode, where you place your Edge Impulse exported C++ model in the local `model/` directory, is **not supported** when using the remote FFI crate from GitHub. The remote crate's build script cannot access your local `model/` directory.
+
+If you require manual model setup, you must use a local path override for the FFI crate in your `Cargo.toml`:
+
+```toml
+[dependencies]
+edge-impulse-ffi-rs = { path = "../edge-impulse-ffi-rs", optional = true }
+```
 
 ---
 
-## Running Examples
+## Examples
 
-This workspace contains examples in both the runner and FFI crates.
-
-### Runner Crate Examples
-
-The runner crate examples support both EIM and FFI modes:
-
+### Basic Inference
 ```sh
-# EIM mode examples (require model file)
-cargo run -p edge-impulse-runner --example basic_infer -- --model /path/to/model.eim --features "0.1,0.2,0.3"
-cargo run -p edge-impulse-runner --example image_infer -- --model /path/to/model.eim --image /path/to/image.png
-cargo run -p edge-impulse-runner --example audio_infer -- --model /path/to/model.eim --audio /path/to/audio.wav
-cargo run -p edge-impulse-runner --example video_infer -- --model /path/to/model.eim --video /path/to/video.mp4
+# EIM mode
+cargo run --example basic_infer -- --features "0.1,0.2,0.3"
 
-# FFI mode examples (no model file needed)
-cargo run -p edge-impulse-runner --example basic_infer -- --ffi --features "0.1,0.2,0.3"
-cargo run -p edge-impulse-runner --example image_infer -- --ffi --image /path/to/image.png
-cargo run -p edge-impulse-runner --example audio_infer -- --ffi --audio /path/to/audio.wav
-cargo run -p edge-impulse-runner --example video_infer -- --ffi --video /path/to/video.mp4
+# FFI mode
+cargo run --example basic_infer --features ffi -- --ffi --features "0.1,0.2,0.3"
 ```
 
-**Note**: FFI mode examples require the `ffi` feature to be enabled:
+### Image Inference
 ```sh
-cargo run -p edge-impulse-runner --features ffi --example basic_infer -- --ffi --features "0.1,0.2,0.3"
+# EIM mode
+cargo run --example image_infer -- --image /path/to/image.png
+
+# FFI mode
+cargo run --example image_infer --features ffi -- --ffi --image /path/to/image.png
 ```
+
+### Audio Inference
+```sh
+# EIM mode
+cargo run --example audio_infer -- --audio /path/to/audio.wav
+
+# FFI mode
+cargo run --example audio_infer --features ffi -- --ffi --audio /path/to/audio.wav
+```
+
 ---
 
 ## Installation
@@ -109,40 +129,10 @@ edge-impulse-runner = { version = "2.0.0", features = ["ffi"] }
 ```
 
 And set the `EI_PROJECT_ID` and `EI_API_KEY` environment variables.
+
 ---
 
-## Quick Start
-
-### Automated Model Download (FFI Feature)
-If you enable the `ffi` feature, the build will use the official [`edge-impulse-ffi-rs`](https://github.com/edgeimpulse/edge-impulse-ffi-rs) crate from GitHub as a remote dependency. The model download logic is handled by the build script in the remote crate.
-
-To automatically download your Edge Impulse model during the build, set the following environment variables **before** building:
-
-```sh
-export EI_PROJECT_ID=12345
-export EI_API_KEY=ei_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-cargo clean
-CLEAN_MODEL=1 cargo build --features ffi
-```
-
-- The model will only be downloaded if it is missing and these variables are set when the FFI crate is built.
-- If you build without the variables, the model will not be downloaded until you clean and rebuild with the variables set.
-
-**Note:**
-- The download process may take several minutes on the first build.
-- Never commit your API key to version control.
-
-### Manual Model Setup (Not Supported with Remote FFI Crate)
-Manual mode, where you place your Edge Impulse exported C++ model (including `edge-impulse-sdk/`, `model-parameters/`, etc.) in the local `model/` directory, is **not supported** when using the remote FFI crate from GitHub. The remote crate's build script cannot access your local `model/` directory.
-
-If you require manual model setup, you must use a local path override for the FFI crate in your `Cargo.toml`:
-
-```toml
-[dependencies]
-edge-impulse-ffi-rs = { path = "../edge-impulse-ffi-rs", optional = true }
-```
-
-Otherwise, use the automated download mode as described above.
+## Usage
 
 ### EIM Mode (Default)
 
@@ -213,8 +203,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
----
-
 ## Cargo Features
 
 The crate supports different backends through Cargo features:
@@ -228,15 +216,6 @@ edge-impulse-runner = { version = "2.0.0", features = ["ffi"] }
 
 - **`eim`** (default): Enable EIM binary communication mode
 - **`ffi`**: Enable FFI direct mode (requires `edge-impulse-ffi-rs` dependency)
-
-### Feature Combinations
-
-- **Default (`features = ["eim"]`)**: Only EIM mode available
-- **`features = ["ffi"]`**: Only FFI mode available
-
-**Note**: Only one backend should be enabled at a time. Enabling both features simultaneously is not supported and may cause conflicts.
-
----
 
 ## Performance Comparison
 
@@ -320,29 +299,117 @@ To use the new FFI mode:
 - **Same Functionality**: All methods and behavior remain identical
 - **New features**: FFI mode requires the `ffi` Cargo feature
 
-#### Performance Improvements
+---
 
-| Metric | 1.0.0 (EIM only) | 2.0.0 (FFI mode) | Improvement |
-|--------|------------------|------------------|-------------|
-| Startup time | ~100-200ms | ~10-20ms | **5-10x faster** |
-| Inference latency | ~5-15ms | ~1-3ms | **3-5x faster** |
-| Memory usage | ~50-100MB | ~20-40MB | **50% reduction** |
-| Deployment | Requires .eim files | Compiled into binary | **Simpler** |
+## Building
+
+### FFI Build Modes
+
+- **Default (TensorFlow Lite Micro - for microcontrollers):**
+  ```sh
+  cargo build
+  ```
+- **Full TensorFlow Lite (for desktop/server):**
+  ```sh
+  USE_FULL_TFLITE=1 cargo build
+  ```
+
+### Platform-Specific Builds
+
+You can specify the target platform explicitly using these environment variables:
+
+#### macOS
+```sh
+# Apple Silicon (M1/M2/M3)
+TARGET_MAC_ARM64=1 USE_FULL_TFLITE=1 cargo build
+# Intel Mac
+TARGET_MAC_X86_64=1 USE_FULL_TFLITE=1 cargo build
+```
+#### Linux
+```sh
+# Linux x86_64
+TARGET_LINUX_X86=1 USE_FULL_TFLITE=1 cargo build
+# Linux ARM64
+TARGET_LINUX_AARCH64=1 USE_FULL_TFLITE=1 cargo build
+# Linux ARMv7
+TARGET_LINUX_ARMV7=1 USE_FULL_TFLITE=1 cargo build
+```
+#### NVIDIA Jetson
+```sh
+# Jetson Nano
+TARGET_JETSON_NANO=1 USE_FULL_TFLITE=1 cargo build
+# Jetson Orin
+TARGET_JETSON_ORIN=1 USE_FULL_TFLITE=1 cargo build
+```
+
+### Platform Support
+
+Full TensorFlow Lite uses prebuilt binaries from the `tflite/` directory:
+
+| Platform           | Directory                |
+|--------------------|-------------------------|
+| macOS ARM64        | tflite/mac-arm64/       |
+| macOS x86_64       | tflite/mac-x86_64/      |
+| Linux x86          | tflite/linux-x86/       |
+| Linux ARM64        | tflite/linux-aarch64/   |
+| Linux ARMv7        | tflite/linux-armv7/     |
+| Jetson Nano        | tflite/linux-jetson-nano/|
+
+**Note:** If no platform is specified, the build system will auto-detect based on your current system architecture.
+
+---
+
+## Advanced Build Flags
+
+This project supports a wide range of advanced build flags for hardware accelerators, backends, and cross-compilation, mirroring the Makefile from Edge Impulse's [example-standalone-inferencing-linux](https://github.com/edgeimpulse/example-standalone-inferencing-linux). You can combine these flags as needed:
+
+| Flag                          | Purpose / Effect                                                                                 |
+|-------------------------------|-----------------------------------------------------------------------------------------------|
+| `USE_TVM=1`                   | Enable Apache TVM backend (requires `TVM_HOME` env var)                                         |
+| `USE_ONNX=1`                  | Enable ONNX Runtime backend                                                                    |
+| `USE_QUALCOMM_QNN=1`          | Enable Qualcomm QNN delegate (requires `QNN_SDK_ROOT` env var)                                 |
+| `USE_ETHOS=1`                 | Enable ARM Ethos-U delegate                                                                   |
+| `USE_AKIDA=1`                 | Enable BrainChip Akida backend                                                                |
+| `USE_MEMRYX=1`                | Enable MemryX backend                                                                         |
+| `LINK_TFLITE_FLEX_LIBRARY=1`  | Link TensorFlow Lite Flex library                                                             |
+| `EI_CLASSIFIER_USE_MEMRYX_SOFTWARE=1` | Use MemryX software mode (with Python bindings)                                    |
+| `TENSORRT_VERSION=8.5.2`      | Set TensorRT version for Jetson platforms                                                     |
+| `TVM_HOME=/path/to/tvm`       | Path to TVM installation (required for `USE_TVM=1`)                                           |
+| `QNN_SDK_ROOT=/path/to/qnn`   | Path to Qualcomm QNN SDK (required for `USE_QUALCOMM_QNN=1`)                                  |
+| `PYTHON_CROSS_PATH=...`       | Path prefix for cross-compiling Python bindings                                               |
+
+### Example Advanced Builds
+
+```sh
+# Build with ONNX Runtime and full TensorFlow Lite for TI AM68A
+USE_ONNX=1 TARGET_AM68A=1 USE_FULL_TFLITE=1 cargo build
+
+# Build with TVM backend (requires TVM_HOME)
+USE_TVM=1 TVM_HOME=/opt/tvm TARGET_RENESAS_RZV2L=1 USE_FULL_TFLITE=1 cargo build
+
+# Build with Qualcomm QNN delegate (requires QNN_SDK_ROOT)
+USE_QUALCOMM_QNN=1 QNN_SDK_ROOT=/opt/qnn TARGET_LINUX_AARCH64=1 USE_FULL_TFLITE=1 cargo build
+
+# Build with ARM Ethos-U delegate
+USE_ETHOS=1 TARGET_LINUX_AARCH64=1 USE_FULL_TFLITE=1 cargo build
+
+# Build with MemryX backend in software mode
+USE_MEMRYX=1 EI_CLASSIFIER_USE_MEMRYX_SOFTWARE=1 TARGET_LINUX_X86=1 USE_FULL_TFLITE=1 cargo build
+
+# Build with TensorFlow Lite Flex library
+LINK_TFLITE_FLEX_LIBRARY=1 USE_FULL_TFLITE=1 cargo build
+
+# Build for Jetson Nano with specific TensorRT version
+TARGET_JETSON_NANO=1 TENSORRT_VERSION=8.5.2 USE_FULL_TFLITE=1 cargo build
+```
+
+See the Makefile in Edge Impulse's [example-standalone-inferencing-linux](https://github.com/edgeimpulse/example-standalone-inferencing-linux) for more details on what each flag does. Not all combinations are valid for all models/platforms.
 
 ---
 
 ## Prerequisites
 
-### EIM Mode
-- Edge Impulse model files (`.eim`)
-- Unix-like system (Linux, macOS)
-
-### FFI Mode
-- `edge-impulse-ffi-rs` crate dependency (available from [GitHub](https://github.com/edgeimpulse/edge-impulse-ffi-rs))
-- Compiled model integrated into your binary
-- For custom models, you can generate your own FFI bindings using the `edge-impulse-ffi-rs` repository as a template
-
-Some functionality (particularly video capture) requires GStreamer to be installed:
+Some examples (particularly video capture) requires GStreamer to be installed:
 - **macOS**: Install both runtime and development packages from gstreamer.freedesktop.org
 - **Linux**: Install required packages (libgstreamer1.0-dev and related packages)
 
@@ -547,18 +614,14 @@ When errors occur:
 
 ---
 
-## License
-
-BSD-3-Clause
-
-## Troubleshooting Automated Downloads
+## Troubleshooting
 
 ### Common Issues
 
 **Model is not downloaded or you see warnings like `Could not find edge-impulse-ffi-rs build output directory`:**
 - Make sure the environment variables are set:
-  - `EDGE_IMPULSE_PROJECT_ID`
-  - `EDGE_IMPULSE_API_KEY`
+  - `EI_PROJECT_ID`
+  - `EI_API_KEY`
 - Run:
   ```sh
   cargo clean
@@ -569,7 +632,7 @@ BSD-3-Clause
 **Download fails with authentication error:**
 - Verify your API key is correct and has access to the project
 - Check that the project ID exists and is accessible
-- Ensure environment variables are set correctly: `EDGE_IMPULSE_PROJECT_ID` and `EDGE_IMPULSE_API_KEY`
+- Ensure environment variables are set correctly: `EI_PROJECT_ID` and `EI_API_KEY`
 
 **Download times out:**
 - The download process can take several minutes for large models
@@ -585,5 +648,11 @@ BSD-3-Clause
 If automated download fails, you can:
 1. Manually download the model from Edge Impulse Studio
 2. Extract it to the `model/` directory
-3. Unset the environment variables: `unset EDGE_IMPULSE_PROJECT_ID EDGE_IMPULSE_API_KEY`
+3. Unset the environment variables: `unset EI_PROJECT_ID EI_API_KEY`
 4. Build normally with `cargo build`
+
+---
+
+## License
+
+BSD-3-Clause
