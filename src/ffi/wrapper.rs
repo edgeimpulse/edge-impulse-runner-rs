@@ -216,6 +216,12 @@ pub struct InferenceResult {
     result: *mut edge_impulse_ffi_rs::bindings::ei_impulse_result_t,
 }
 
+impl Default for InferenceResult {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InferenceResult {
     /// Create a new inference result
     pub fn new() -> Self {
@@ -371,6 +377,12 @@ impl Drop for InferenceResult {
 pub struct EdgeImpulseClassifier {
     #[cfg(feature = "ffi")]
     initialized: bool,
+}
+
+impl Default for EdgeImpulseClassifier {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl EdgeImpulseClassifier {
