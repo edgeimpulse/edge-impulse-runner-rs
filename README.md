@@ -1,22 +1,13 @@
-# Edge Impulse Runner Rust Workspace
+# Edge Impulse Rust Runner
 
 [![Edge Impulse Tests](https://github.com/edgeimpulse/edge-impulse-runner-rs/actions/workflows/edge-impulse-runner.yml/badge.svg)](https://github.com/edgeimpulse/edge-impulse-runner-rs/actions/workflows/edge_impulse_runner.yml)
 [![Docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://edgeimpulse.github.io/edge-impulse-runner-rs/)
 
-> **⚠️ Note: This workspace requires the Rust nightly toolchain due to transitive dependencies.**
+> **⚠️ Note: This crate requires the Rust nightly toolchain due to transitive dependencies.**
 >
 > To build and run, you must:
 > 1. Install nightly: `rustup install nightly`
 > 2. Set nightly for this project: `rustup override set nightly`
-
----
-
-## Workspace Structure
-
-This repository is a Cargo workspace containing:
-
-- **runner/**: The main `edge-impulse-runner` Rust library for running Edge Impulse models (EIM and FFI modes).
-- **ffi/**: The `edge-impulse-ffi-rs` crate, providing Rust FFI bindings to the Edge Impulse C++ SDK. Used when building the runner with the `ffi` feature.
 
 ---
 
@@ -65,10 +56,12 @@ cargo build -p edge-impulse-runner
 
 ### FFI Mode (direct C++ SDK integration)
 ```sh
-cargo build -p edge-impulse-runner --features ffi
+export EI_PROJECT_ID=12345
+export EI_API_KEY=ei_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+CLEAN_MODEL=1 cargo build -p edge-impulse-runner --features ffi
 ```
 
-This will automatically build the FFI crate and link it to the runner.
+This will automatically fetch your model C++ library, build the FFI crate to generate the Rust bindings and link it to the runner.
 
 ---
 
@@ -98,33 +91,6 @@ cargo run -p edge-impulse-runner --example video_infer -- --ffi --video /path/to
 ```sh
 cargo run -p edge-impulse-runner --features ffi --example basic_infer -- --ffi --features "0.1,0.2,0.3"
 ```
-
-### FFI Crate Examples
-
-The FFI crate contains standalone examples that work directly with the C++ SDK:
-
-```sh
-# Build and run FFI examples
-cargo run -p edge-impulse-ffi-rs --example ffi_image_infer -- --image /path/to/image.png
-```
-
-**Important**: For FFI mode, you must first set up your model in the `ffi/model/` directory. See the [FFI README](ffi/README.md) for detailed instructions on building FFI bindings.
-
----
-
-## Using the FFI Crate
-
-To use FFI mode, you must:
-
-1. **Set up your model**: Place your Edge Impulse exported C++ model (including `edge-impulse-sdk/`, `model-parameters/`, etc.) in the `ffi/model/` directory.
-
-2. **Build the workspace with FFI feature**:
-   ```sh
-   cargo build -p edge-impulse-runner --features ffi
-   ```
-
-3. **Check the FFI README**: For advanced build flags, platform-specific instructions, and details on how the FFI build system works, see [`ffi/README.md`](ffi/README.md).
-
 ---
 
 ## Installation
@@ -142,6 +108,7 @@ For FFI mode, add the `ffi` feature:
 edge-impulse-runner = { version = "2.0.0", features = ["ffi"] }
 ```
 
+And set the `EI_PROJECT_ID` and `EI_API_KEY` environment variables.
 ---
 
 ## Quick Start
@@ -152,10 +119,10 @@ If you enable the `ffi` feature, the build will use the official [`edge-impulse-
 To automatically download your Edge Impulse model during the build, set the following environment variables **before** building:
 
 ```sh
-export EDGE_IMPULSE_PROJECT_ID=12345
-export EDGE_IMPULSE_API_KEY=ei_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+export EI_PROJECT_ID=12345
+export EI_API_KEY=ei_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 cargo clean
-cargo build --features ffi
+CLEAN_MODEL=1 cargo build --features ffi
 ```
 
 - The model will only be downloaded if it is missing and these variables are set when the FFI crate is built.
