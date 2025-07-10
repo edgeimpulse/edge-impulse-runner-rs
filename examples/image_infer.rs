@@ -12,10 +12,8 @@
 
 use clap::Parser;
 use edge_impulse_runner::types::ModelThreshold;
-use edge_impulse_runner::{EdgeImpulseError, EdgeImpulseModel, InferenceResult};
+use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
 use image::{self};
-use std::error::Error;
-// Removed unused import
 use std::time::Instant;
 
 #[cfg(feature = "ffi")]

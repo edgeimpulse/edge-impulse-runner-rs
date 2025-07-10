@@ -4,7 +4,7 @@ pub mod model;
 
 #[cfg(test)]
 mod tests {
-    use crate::{EdgeImpulseError, EdgeImpulseModel};
+    use crate::{EdgeImpulseModel, EdgeImpulseError};
     use std::env;
     use std::fs::File;
     use std::io::Write;

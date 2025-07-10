@@ -20,7 +20,7 @@ use clap::Parser;
 #[cfg(feature = "ffi")]
 use edge_impulse_runner::ffi::ModelMetadata;
 use edge_impulse_runner::types::ModelThreshold;
-use edge_impulse_runner::{EdgeImpulseError, EdgeImpulseModel, InferenceResult};
+use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
