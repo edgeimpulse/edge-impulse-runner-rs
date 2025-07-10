@@ -7,7 +7,7 @@ use super::{BackendConfig, InferenceBackend};
 use crate::error::EimError;
 use crate::inference::messages::InferenceResponse;
 use crate::types::{ModelParameters, SensorType, VisualAnomalyResult};
-use rand::{thread_rng, Rng};
+use rand::{Rng, thread_rng};
 // Removed unused import
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
@@ -15,7 +15,7 @@ use std::path::Path;
 use std::process::Child;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
-use tempfile::{tempdir, TempDir};
+use tempfile::{TempDir, tempdir};
 
 use crate::inference::messages::{ClassifyMessage, HelloMessage, InferenceResult, ModelInfo};
 

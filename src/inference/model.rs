@@ -1,4 +1,4 @@
-use crate::backends::{create_backend, BackendConfig, InferenceBackend};
+use crate::backends::{BackendConfig, InferenceBackend, create_backend};
 use crate::error::EimError;
 use crate::inference::messages::InferenceResponse;
 use crate::types::{ModelParameters, SensorType, VisualAnomalyResult};
