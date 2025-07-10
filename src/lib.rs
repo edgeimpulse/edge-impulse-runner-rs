@@ -1,24 +1,32 @@
-//! # Edge Impulse
+//! # Edge Impulse Runner
 //!
-//! A Rust library for running inference with Edge Impulse Linux models (EIM) and uploading data to
-//! Edge Impulse. This crate provides safe and easy-to-use interfaces for:
-//! - Running machine learning models on Linux and MacOS
+//! A Rust library for running inference with Edge Impulse models and uploading data to
+//! Edge Impulse projects. This crate provides safe and easy-to-use interfaces for:
+//! - Running machine learning models on Linux and macOS
 //! - Uploading training, testing and anomaly data to Edge Impulse projects
 //!
-//! ## Features
+//! ## Inference Modes
 //!
-//! ### Inference
-//! - Run Edge Impulse models (.eim files) on Linux and MacOS
-//! - Support for different model types:
-//!   - Classification models
-//!   - Object detection models
-//! - Support for different sensor types:
-//!   - Camera
-//!   - Microphone
-//!   - Accelerometer
-//!   - Positional sensors
-//! - Continuous classification mode support
-//! - Debug output option
+//! The crate supports two inference modes:
+//!
+//! ### EIM Mode (Default)
+//! - Run Edge Impulse models (.eim files) using binary communication
+//! - Requires model files to be present on the filesystem
+//! - Compatible with all Edge Impulse deployment targets
+//!
+//! ### FFI Mode
+//! - Direct FFI calls to the Edge Impulse C++ SDK
+//! - Models are compiled into the binary
+//! - Faster startup and inference times
+//! - Requires the `ffi` feature to be enabled
+//!
+//! ## Model Support
+//!
+//! - **Classification models**: Multi-class and binary classification
+//! - **Object detection models**: Bounding box detection with labels
+//! - **Anomaly detection**: Visual and sensor-based anomaly detection
+//! - **Sensor types**: Camera, microphone, accelerometer, positional sensors
+//! - **Continuous mode**: Real-time streaming inference support
 //!
 //! ### Data Ingestion
 //! - Upload data to Edge Impulse projects
@@ -34,12 +42,12 @@
 //!
 //! ## Quick Start Examples
 //!
-//! ### Basic Classification
+//! ### EIM Mode (Default)
 //! ```no_run
 //! use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Create a new model instance
+//!     // Create a new model instance with EIM file
 //!     let mut model = EdgeImpulseModel::new("path/to/model.eim")?;
 //!
 //!     // Prepare normalized features (e.g., image pixels, audio samples)
@@ -90,6 +98,42 @@
 //! }
 //! ```
 //!
+//! ### FFI Mode
+//! ```no_run
+//! use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
+//!
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     // Create a new model instance with FFI mode
+//!     let mut model = EdgeImpulseModel::new_ffi(false)?;
+//!
+//!     // Prepare normalized features (e.g., image pixels, audio samples)
+//!     let features: Vec<f32> = vec![0.1, 0.2, 0.3];
+//!
+//!     // Run inference
+//!     let result = model.infer(features, None)?;
+//!
+//!     // Process results (same as EIM mode)
+//!     match result.result {
+//!         InferenceResult::Classification { classification } => {
+//!             println!("Classification: {:?}", classification);
+//!         }
+//!         InferenceResult::ObjectDetection {
+//!             bounding_boxes,
+//!             classification,
+//!         } => {
+//!             println!("Detected objects: {:?}", bounding_boxes);
+//!             if !classification.is_empty() {
+//!                 println!("Classification: {:?}", classification);
+//!             }
+//!         }
+//!         InferenceResult::VisualAnomaly { .. } => {
+//!             println!("Anomaly detection result");
+//!         }
+//!     }
+//!     Ok(())
+//! }
+//! ```
+//!
 //! ### Data Upload
 //! ```no_run
 //! use edge_impulse_runner::ingestion::{Category, Ingestion, UploadOptions};
@@ -116,10 +160,16 @@
 //!
 //! ## Architecture
 //!
-//! ### Inference Protocol
-//! The Edge Impulse Inference Runner uses a Unix socket-based IPC mechanism to communicate
-//! with the model process. The protocol is JSON-based and follows a request-response pattern
-//! for model initialization, classification requests, and error handling.
+//! ### Backend Abstraction
+//! The crate uses a trait-based backend system that allows switching between different
+//! inference modes:
+//!
+//! - **EIM Backend**: Uses Unix socket-based IPC to communicate with Edge Impulse model
+//!   processes. The protocol is JSON-based and follows a request-response pattern for
+//!   model initialization, classification requests, and error handling.
+//!
+//! - **FFI Backend**: Direct FFI calls to the Edge Impulse C++ SDK, providing faster
+//!   startup times and lower latency by eliminating IPC overhead.
 //!
 //! ### Ingestion API
 //! The ingestion module interfaces with the Edge Impulse Ingestion API over HTTPS, supporting
@@ -153,10 +203,20 @@
 //!
 //! ## Modules
 //!
+//! - `backends`: Backend abstraction and implementations (EIM, FFI)
 //! - `error`: Error types and handling
+//! - `ffi`: Safe Rust bindings for Edge Impulse C++ SDK (when `ffi` feature is enabled)
 //! - `inference`: Model management and inference functionality
 //! - `ingestion`: Data upload and project management
 //! - `types`: Common types and parameters
+//!
+//! ## Cargo Features
+//!
+//! - **`eim`** (default): Enable EIM binary communication mode
+//! - **`ffi`**: Enable FFI direct mode (requires `edge-impulse-ffi-rs` dependency)
+//!
+//! Only one backend should be enabled at a time. Enabling both features simultaneously
+//! is not supported and may cause conflicts.
 
 pub mod backends;
 pub mod error;

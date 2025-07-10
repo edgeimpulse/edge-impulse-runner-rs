@@ -2,7 +2,15 @@
 //!
 //! This module contains the core data structures that define model configuration,
 //! project information, and performance metrics. These types are used to configure
-//! the model and interpret its outputs.
+//! the model and interpret its outputs across both EIM and FFI modes.
+//!
+//! ## Key Types
+//!
+//! - **ModelParameters**: Model configuration and capabilities
+//! - **ProjectInfo**: Edge Impulse project metadata
+//! - **TimingInfo**: Performance timing information
+//! - **BoundingBox**: Object detection results
+//! - **SensorType**: Supported sensor types
 
 use serde::Deserialize;
 use serde::Serialize;

@@ -357,6 +357,14 @@ Full TensorFlow Lite uses prebuilt binaries from the `tflite/` directory:
 
 **Note:** If no platform is specified, the build system will auto-detect based on your current system architecture.
 
+### Model Updates
+
+If you want to switch between models or make sure you always get the latest version of your model, you have to set the `CLEAN_MODEL=1` environment variable:
+
+```sh
+CLEAN_MODEL=1 cargo build
+```
+
 ---
 
 ## Advanced Build Flags

@@ -6,7 +6,12 @@
 //! models.
 //!
 //! The main error type is `EimError`, which encompasses all possible error
-//! conditions that can occur within the library.
+//! conditions that can occur within the library, including both EIM and FFI modes.
+//!
+//! ## Error Types
+//!
+//! - **EimError**: Main error type for inference operations
+//! - **IngestionError**: Error type for data upload operations
 
 use std::error::Error;
 use std::fmt;

@@ -1,7 +1,13 @@
 //! Backend abstraction for Edge Impulse inference
 //!
 //! This module provides a trait-based abstraction that allows switching between
-//! different inference backends (EIM binary communication vs FFI direct calls).
+//! different inference backends:
+//!
+//! - **EIM Backend**: Binary communication with Edge Impulse model processes via Unix sockets
+//! - **FFI Backend**: Direct FFI calls to the Edge Impulse C++ SDK
+//!
+//! The backend system is designed to be extensible, allowing new inference engines
+//! to be added by implementing the `InferenceBackend` trait.
 
 use crate::error::EimError;
 use crate::inference::messages::InferenceResponse;

@@ -5,6 +5,26 @@ use crate::types::{ModelParameters, SensorType, VisualAnomalyResult};
 use std::path::Path;
 
 /// Main Edge Impulse model interface that abstracts over different backends
+///
+/// This struct provides a unified interface for running inference on Edge Impulse models,
+/// regardless of whether you're using EIM binary communication or FFI direct calls.
+/// The backend is automatically selected based on the constructor used.
+///
+/// ## Examples
+///
+/// ```no_run
+/// use edge_impulse_runner::EdgeImpulseModel;
+///
+/// // EIM mode (default)
+/// let mut model = EdgeImpulseModel::new("model.eim")?;
+///
+/// // FFI mode
+/// let mut model = EdgeImpulseModel::new_ffi(false)?;
+///
+/// // Run inference
+/// let result = model.infer(vec![0.1, 0.2, 0.3], None)?;
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
 pub struct EdgeImpulseModel {
     backend: Box<dyn InferenceBackend>,
 }
