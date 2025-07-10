@@ -9,7 +9,7 @@
 //! The backend system is designed to be extensible, allowing new inference engines
 //! to be added by implementing the `InferenceBackend` trait.
 
-use crate::error::EimError;
+use crate::error::EdgeImpulseError;
 use crate::inference::messages::InferenceResponse;
 use crate::types::ModelParameters;
 use std::path::PathBuf;
@@ -34,7 +34,7 @@ pub enum BackendConfig {
 /// Trait for inference backends
 pub trait InferenceBackend: Send + Sync {
     /// Create a new backend instance
-    fn new(config: BackendConfig) -> Result<Self, EimError>
+    fn new(config: BackendConfig) -> Result<Self, EdgeImpulseError>
     where
         Self: Sized;
 
@@ -43,16 +43,16 @@ pub trait InferenceBackend: Send + Sync {
         &mut self,
         features: Vec<f32>,
         debug: Option<bool>,
-    ) -> Result<InferenceResponse, EimError>;
+    ) -> Result<InferenceResponse, EdgeImpulseError>;
 
     /// Get model parameters
-    fn parameters(&self) -> Result<&ModelParameters, EimError>;
+    fn parameters(&self) -> Result<&ModelParameters, EdgeImpulseError>;
 
     /// Get sensor type
-    fn sensor_type(&self) -> Result<crate::types::SensorType, EimError>;
+    fn sensor_type(&self) -> Result<crate::types::SensorType, EdgeImpulseError>;
 
     /// Get input size
-    fn input_size(&self) -> Result<usize, EimError>;
+    fn input_size(&self) -> Result<usize, EdgeImpulseError>;
 
     /// Set debug callback
     fn set_debug_callback(&mut self, callback: Box<dyn Fn(&str) + Send + Sync>);
@@ -74,17 +74,17 @@ pub mod eim;
 pub mod ffi;
 
 /// Factory function to create the appropriate backend
-pub fn create_backend(config: BackendConfig) -> Result<Box<dyn InferenceBackend>, EimError> {
+pub fn create_backend(config: BackendConfig) -> Result<Box<dyn InferenceBackend>, EdgeImpulseError> {
     match config {
         #[cfg(feature = "eim")]
         BackendConfig::Eim { path, socket_path } => {
             // Validate file extension for EIM backend
             if let Some(ext) = path.extension() {
                 if ext != "eim" {
-                    return Err(EimError::InvalidPath);
+                    return Err(EdgeImpulseError::InvalidPath);
                 }
             } else {
-                return Err(EimError::InvalidPath);
+                return Err(EdgeImpulseError::InvalidPath);
             }
 
             use eim::EimBackend;
@@ -99,11 +99,11 @@ pub fn create_backend(config: BackendConfig) -> Result<Box<dyn InferenceBackend>
             Ok(Box::new(FfiBackend::new(BackendConfig::Ffi { debug })?))
         }
         #[cfg(not(feature = "eim"))]
-        BackendConfig::Eim { .. } => Err(EimError::InvalidOperation(
+        BackendConfig::Eim { .. } => Err(EdgeImpulseError::InvalidOperation(
             "EIM backend not enabled. Enable the 'eim' feature.".to_string(),
         )),
         #[cfg(not(feature = "ffi"))]
-        BackendConfig::Ffi { .. } => Err(EimError::InvalidOperation(
+        BackendConfig::Ffi { .. } => Err(EdgeImpulseError::InvalidOperation(
             "FFI backend not enabled. Enable the 'ffi' feature.".to_string(),
         )),
     }

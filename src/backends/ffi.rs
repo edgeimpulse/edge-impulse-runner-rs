@@ -1,5 +1,5 @@
 use super::{BackendConfig, InferenceBackend};
-use crate::error::EimError;
+use crate::error::EdgeImpulseError;
 use crate::ffi::{EdgeImpulseClassifier, ModelMetadata, Signal};
 use crate::inference::messages::InferenceResponse;
 use crate::types::{
@@ -20,9 +20,9 @@ pub struct FfiBackend {
 
 impl FfiBackend {
     /// Create a new FFI backend
-    pub fn new(config: BackendConfig) -> Result<Self, EimError> {
+    pub fn new(config: BackendConfig) -> Result<Self, EdgeImpulseError> {
         let BackendConfig::Ffi { debug: _ } = config else {
-            return Err(EimError::InvalidOperation(
+            return Err(EdgeImpulseError::InvalidOperation(
                 "Invalid config type for FFI backend".to_string(),
             ));
         };
@@ -30,7 +30,7 @@ impl FfiBackend {
         // Initialize the Edge Impulse classifier
         let mut classifier = EdgeImpulseClassifier::new();
         classifier.init().map_err(|e| {
-            EimError::InvalidOperation(format!(
+            EdgeImpulseError::InvalidOperation(format!(
                 "Failed to initialize Edge Impulse classifier: {}",
                 e
             ))
@@ -47,7 +47,7 @@ impl FfiBackend {
     }
 
     /// Extract model parameters from the compiled-in model metadata
-    fn get_model_parameters() -> Result<ModelParameters, EimError> {
+    fn get_model_parameters() -> Result<ModelParameters, EdgeImpulseError> {
         let metadata = ModelMetadata::get();
 
         // Convert sensor type (unused but kept for future use)
@@ -121,7 +121,7 @@ impl FfiBackend {
 }
 
 impl InferenceBackend for FfiBackend {
-    fn new(config: BackendConfig) -> Result<Self, EimError> {
+    fn new(config: BackendConfig) -> Result<Self, EdgeImpulseError> {
         Self::new(config)
     }
 
@@ -129,7 +129,7 @@ impl InferenceBackend for FfiBackend {
         &mut self,
         features: Vec<f32>,
         debug: Option<bool>,
-    ) -> Result<InferenceResponse, EimError> {
+    ) -> Result<InferenceResponse, EdgeImpulseError> {
         let debug_enabled = debug.unwrap_or(false);
 
         if debug_enabled {
@@ -138,14 +138,14 @@ impl InferenceBackend for FfiBackend {
 
         // Create a signal from the input features
         let signal = Signal::from_raw_data(&features).map_err(|e| {
-            EimError::InvalidOperation(format!("Failed to create signal from features: {}", e))
+            EdgeImpulseError::InvalidOperation(format!("Failed to create signal from features: {}", e))
         })?;
 
         // Run the classifier
         let result = self
             .classifier
             .run_classifier(&signal, debug_enabled)
-            .map_err(|e| EimError::InvalidOperation(format!("Failed to run classifier: {}", e)))?;
+            .map_err(|e| EdgeImpulseError::InvalidOperation(format!("Failed to run classifier: {}", e)))?;
 
         // Extract results based on model type
         let inference_result = if self.parameters.model_type == "object-detection" {
@@ -190,11 +190,11 @@ impl InferenceBackend for FfiBackend {
         })
     }
 
-    fn parameters(&self) -> Result<&ModelParameters, EimError> {
+    fn parameters(&self) -> Result<&ModelParameters, EdgeImpulseError> {
         Ok(&self.parameters)
     }
 
-    fn sensor_type(&self) -> Result<SensorType, EimError> {
+    fn sensor_type(&self) -> Result<SensorType, EdgeImpulseError> {
         Ok(match self.parameters.sensor {
             1 => SensorType::Microphone,
             2 => SensorType::Accelerometer,
@@ -204,7 +204,7 @@ impl InferenceBackend for FfiBackend {
         })
     }
 
-    fn input_size(&self) -> Result<usize, EimError> {
+    fn input_size(&self) -> Result<usize, EdgeImpulseError> {
         Ok(self.parameters.input_features_count as usize)
     }
 

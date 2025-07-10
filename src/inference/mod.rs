@@ -4,7 +4,7 @@ pub mod model;
 
 #[cfg(test)]
 mod tests {
-    use crate::{EdgeImpulseModel, EimError};
+    use crate::{EdgeImpulseModel, EdgeImpulseError};
     use std::env;
     use std::fs::File;
     use std::io::Write;
@@ -60,7 +60,7 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'cat {}'"#,
             socket_path.as_path(),
         );
         match result {
-            Err(EimError::ExecutionError(msg)) if msg.contains("No such file") => (),
+            Err(EdgeImpulseError::ExecutionError(msg)) if msg.contains("No such file") => (),
             other => panic!("Expected ExecutionError for missing file, got {:?}", other),
         }
     }
@@ -73,7 +73,7 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'cat {}'"#,
 
         let result = EdgeImpulseModel::new(temp_file.as_path());
         match result {
-            Err(EimError::InvalidPath) => (),
+            Err(EdgeImpulseError::InvalidPath) => (),
             _ => panic!("Expected InvalidPath when file has wrong extension"),
         }
     }
@@ -147,7 +147,7 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'cat {}'"#,
         let result = EdgeImpulseModel::new_with_socket(model_path.as_path(), socket_path.as_path());
         assert!(
             matches!(result,
-                Err(EimError::SocketError(ref msg)) if msg.contains("Timeout waiting for socket")
+                Err(EdgeImpulseError::SocketError(ref msg)) if msg.contains("Timeout waiting for socket")
             ),
             "Expected timeout error, got {:?}",
             result

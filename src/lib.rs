@@ -183,9 +183,9 @@
 //!
 //! ## Error Handling
 //!
-//! The crate uses the `EimError` type to provide detailed error information:
+//! The crate uses the `EdgeImpulseError` type to provide detailed error information:
 //! ```no_run
-//! use edge_impulse_runner::{EdgeImpulseModel, EimError};
+//! use edge_impulse_runner::{EdgeImpulseModel, EdgeImpulseError};
 //!
 //! // Match on model creation
 //! match EdgeImpulseModel::new("model.eim") {
@@ -193,7 +193,7 @@
 //!         // Match on classification
 //!         match model.infer(vec![0.1, 0.2, 0.3], None) {
 //!             Ok(result) => println!("Success!"),
-//!             Err(EimError::InvalidInput(msg)) => println!("Invalid input: {}", msg),
+//!             Err(EdgeImpulseError::InvalidInput(msg)) => println!("Invalid input: {}", msg),
 //!             Err(e) => println!("Other error: {}", e),
 //!         }
 //!     },
@@ -227,7 +227,7 @@ pub mod types;
 
 pub use inference::messages::{InferenceResponse, InferenceResult};
 
-pub use error::EimError;
+pub use error::EdgeImpulseError;
 pub use inference::model::EdgeImpulseModel;
 pub use types::BoundingBox;
 pub use types::ModelParameters;

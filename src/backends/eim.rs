@@ -4,7 +4,7 @@
 //! binary files over Unix sockets.
 
 use super::{BackendConfig, InferenceBackend};
-use crate::error::EimError;
+use crate::error::EdgeImpulseError;
 use crate::inference::messages::InferenceResponse;
 use crate::types::{ModelParameters, SensorType, VisualAnomalyResult};
 use rand::{Rng, thread_rng};
@@ -52,16 +52,16 @@ pub struct EimBackend {
 
 impl EimBackend {
     /// Create a new EIM backend
-    pub fn new(config: BackendConfig) -> Result<Self, EimError> {
+    pub fn new(config: BackendConfig) -> Result<Self, EdgeImpulseError> {
         let BackendConfig::Eim { path, .. } = config else {
-            return Err(EimError::InvalidOperation(
+            return Err(EdgeImpulseError::InvalidOperation(
                 "Invalid config type for EIM backend".to_string(),
             ));
         };
 
         // Always generate a temp socket path
         let tempdir = tempdir()
-            .map_err(|e| EimError::ExecutionError(format!("Failed to create tempdir: {e}")))?;
+            .map_err(|e| EdgeImpulseError::ExecutionError(format!("Failed to create tempdir: {e}")))?;
         let mut rng = thread_rng();
         let socket_name = format!("eim_socket_{}", rng.r#gen::<u64>());
         let socket_path = tempdir.path().join(socket_name);
@@ -78,7 +78,7 @@ impl EimBackend {
         let process = std::process::Command::new(&path)
             .arg(&socket_path)
             .spawn()
-            .map_err(|e| EimError::ExecutionError(format!("Failed to start model process: {e}")))?;
+            .map_err(|e| EdgeImpulseError::ExecutionError(format!("Failed to start model process: {e}")))?;
 
         // Wait for the socket to be created and connect
         let socket = Self::connect_with_retry(&socket_path, Duration::from_secs(10))?;
@@ -103,12 +103,12 @@ impl EimBackend {
     }
 
     /// Ensure the model file has execution permissions for the current user
-    fn ensure_executable<P: AsRef<Path>>(path: P) -> Result<(), EimError> {
+    fn ensure_executable<P: AsRef<Path>>(path: P) -> Result<(), EdgeImpulseError> {
         use std::os::unix::fs::PermissionsExt;
 
         let path = path.as_ref();
         let metadata = std::fs::metadata(path)
-            .map_err(|e| EimError::ExecutionError(format!("Failed to get file metadata: {e}")))?;
+            .map_err(|e| EdgeImpulseError::ExecutionError(format!("Failed to get file metadata: {e}")))?;
 
         let perms = metadata.permissions();
         let current_mode = perms.mode();
@@ -117,14 +117,14 @@ impl EimBackend {
             let mut new_perms = perms;
             new_perms.set_mode(current_mode | 0o100); // Add executable bit for user only
             std::fs::set_permissions(path, new_perms).map_err(|e| {
-                EimError::ExecutionError(format!("Failed to set executable permissions: {e}"))
+                EdgeImpulseError::ExecutionError(format!("Failed to set executable permissions: {e}"))
             })?;
         }
         Ok(())
     }
 
     /// Connect to the socket with retry logic
-    fn connect_with_retry(socket_path: &Path, timeout: Duration) -> Result<UnixStream, EimError> {
+    fn connect_with_retry(socket_path: &Path, timeout: Duration) -> Result<UnixStream, EdgeImpulseError> {
         println!("Attempting to connect to socket: {}", socket_path.display());
         let start = Instant::now();
         while start.elapsed() < timeout {
@@ -138,44 +138,44 @@ impl EimBackend {
                 }
             }
         }
-        Err(EimError::SocketError(format!(
+        Err(EdgeImpulseError::SocketError(format!(
             "Timeout waiting for socket {} to become available",
             socket_path.display()
         )))
     }
 
     /// Send hello message to get model information
-    fn send_hello(&mut self) -> Result<(), EimError> {
+    fn send_hello(&mut self) -> Result<(), EdgeImpulseError> {
         let hello = HelloMessage {
             id: self.next_message_id(),
             hello: 1,
         };
 
         let hello_json = serde_json::to_string(&hello)
-            .map_err(|e| EimError::InvalidOperation(format!("Failed to serialize hello: {e}")))?;
+            .map_err(|e| EdgeImpulseError::InvalidOperation(format!("Failed to serialize hello: {e}")))?;
 
         self.debug_message(&format!("Sending hello: {hello_json}"));
 
         // Send the message
         self.socket
             .write_all(hello_json.as_bytes())
-            .map_err(|e| EimError::ExecutionError(format!("Failed to send hello: {e}")))?;
+            .map_err(|e| EdgeImpulseError::ExecutionError(format!("Failed to send hello: {e}")))?;
         self.socket
             .write_all(b"\n")
-            .map_err(|e| EimError::ExecutionError(format!("Failed to send newline: {e}")))?;
+            .map_err(|e| EdgeImpulseError::ExecutionError(format!("Failed to send newline: {e}")))?;
 
         // Read the response
         let mut reader = BufReader::new(&self.socket);
         let mut response = String::new();
         reader
             .read_line(&mut response)
-            .map_err(|e| EimError::ExecutionError(format!("Failed to read hello response: {e}")))?;
+            .map_err(|e| EdgeImpulseError::ExecutionError(format!("Failed to read hello response: {e}")))?;
 
         self.debug_message(&format!("Received hello response: {}", response.trim()));
 
         // Parse the response
         let model_info: ModelInfo = serde_json::from_str(&response).map_err(|e| {
-            EimError::InvalidOperation(format!("Failed to parse hello response: {e}"))
+            EdgeImpulseError::InvalidOperation(format!("Failed to parse hello response: {e}"))
         })?;
 
         self.model_info = Some(model_info.clone());
@@ -204,7 +204,7 @@ impl EimBackend {
     }
 
     /// Classify a single input
-    fn classify(&mut self, input: &[f32]) -> Result<InferenceResult, EimError> {
+    fn classify(&mut self, input: &[f32]) -> Result<InferenceResult, EdgeImpulseError> {
         let classify = ClassifyMessage {
             id: self.next_message_id(),
             classify: input.to_vec(),
@@ -212,20 +212,20 @@ impl EimBackend {
         };
 
         let classify_json = serde_json::to_string(&classify).map_err(|e| {
-            EimError::InvalidOperation(format!("Failed to serialize classify: {e}"))
+            EdgeImpulseError::InvalidOperation(format!("Failed to serialize classify: {e}"))
         })?;
 
         self.socket
             .write_all(classify_json.as_bytes())
-            .map_err(|e| EimError::ExecutionError(format!("Failed to send classify: {e}")))?;
+            .map_err(|e| EdgeImpulseError::ExecutionError(format!("Failed to send classify: {e}")))?;
         self.socket
             .write_all(b"\n")
-            .map_err(|e| EimError::ExecutionError(format!("Failed to send newline: {e}")))?;
+            .map_err(|e| EdgeImpulseError::ExecutionError(format!("Failed to send newline: {e}")))?;
 
         let mut reader = BufReader::new(&self.socket);
         let mut response_json = String::new();
         reader.read_line(&mut response_json).map_err(|e| {
-            EimError::ExecutionError(format!("Failed to read classify response: {e}"))
+            EdgeImpulseError::ExecutionError(format!("Failed to read classify response: {e}"))
         })?;
 
         let response: InferenceResponse = match serde_json::from_str(&response_json) {
@@ -236,7 +236,7 @@ impl EimBackend {
                     e,
                     response_json.trim()
                 );
-                return Err(EimError::InvalidOperation(format!(
+                return Err(EdgeImpulseError::InvalidOperation(format!(
                     "Failed to parse classify response: {e}"
                 )));
             }
@@ -247,7 +247,7 @@ impl EimBackend {
 }
 
 impl InferenceBackend for EimBackend {
-    fn new(config: BackendConfig) -> Result<Self, EimError> {
+    fn new(config: BackendConfig) -> Result<Self, EdgeImpulseError> {
         EimBackend::new(config)
     }
 
@@ -255,7 +255,7 @@ impl InferenceBackend for EimBackend {
         &mut self,
         features: Vec<f32>,
         _debug: Option<bool>,
-    ) -> Result<InferenceResponse, EimError> {
+    ) -> Result<InferenceResponse, EdgeImpulseError> {
         // Use classify and wrap in InferenceResponse
         let result = self.classify(&features)?;
         Ok(InferenceResponse {
@@ -265,16 +265,16 @@ impl InferenceBackend for EimBackend {
         })
     }
 
-    fn parameters(&self) -> Result<&ModelParameters, EimError> {
+    fn parameters(&self) -> Result<&ModelParameters, EdgeImpulseError> {
         Ok(&self.model_parameters)
     }
 
-    fn sensor_type(&self) -> Result<SensorType, EimError> {
+    fn sensor_type(&self) -> Result<SensorType, EdgeImpulseError> {
         // Convert from i32 to SensorType
         Ok(SensorType::from(self.model_parameters.sensor))
     }
 
-    fn input_size(&self) -> Result<usize, EimError> {
+    fn input_size(&self) -> Result<usize, EdgeImpulseError> {
         Ok(self.model_parameters.input_features_count as usize)
     }
 

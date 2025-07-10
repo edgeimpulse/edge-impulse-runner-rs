@@ -1,5 +1,5 @@
 use crate::backends::{BackendConfig, InferenceBackend, create_backend};
-use crate::error::EimError;
+use crate::error::EdgeImpulseError;
 use crate::inference::messages::InferenceResponse;
 use crate::types::{ModelParameters, SensorType, VisualAnomalyResult};
 use std::path::Path;
@@ -31,7 +31,7 @@ pub struct EdgeImpulseModel {
 
 impl EdgeImpulseModel {
     /// Create a new model instance using EIM backend
-    pub fn new<P: AsRef<Path>>(model_path: P) -> Result<Self, EimError> {
+    pub fn new<P: AsRef<Path>>(model_path: P) -> Result<Self, EdgeImpulseError> {
         let config = BackendConfig::Eim {
             path: model_path.as_ref().to_path_buf(),
             socket_path: None,
@@ -44,7 +44,7 @@ impl EdgeImpulseModel {
     pub fn new_with_socket<P: AsRef<Path>>(
         model_path: P,
         socket_path: P,
-    ) -> Result<Self, EimError> {
+    ) -> Result<Self, EdgeImpulseError> {
         let config = BackendConfig::Eim {
             path: model_path.as_ref().to_path_buf(),
             socket_path: Some(socket_path.as_ref().to_path_buf()),
@@ -54,7 +54,7 @@ impl EdgeImpulseModel {
     }
 
     /// Create a new model instance using EIM backend with debug output
-    pub fn new_with_debug<P: AsRef<Path>>(model_path: P, debug: bool) -> Result<Self, EimError> {
+    pub fn new_with_debug<P: AsRef<Path>>(model_path: P, debug: bool) -> Result<Self, EdgeImpulseError> {
         let config = BackendConfig::Eim {
             path: model_path.as_ref().to_path_buf(),
             socket_path: None,
@@ -67,7 +67,7 @@ impl EdgeImpulseModel {
     }
 
     /// Create a new model instance using FFI backend
-    pub fn new_ffi(debug: bool) -> Result<Self, EimError> {
+    pub fn new_ffi(debug: bool) -> Result<Self, EdgeImpulseError> {
         let config = BackendConfig::Ffi { debug };
         let mut backend = create_backend(config)?;
         if debug {
@@ -81,22 +81,22 @@ impl EdgeImpulseModel {
         &mut self,
         features: Vec<f32>,
         debug: Option<bool>,
-    ) -> Result<InferenceResponse, EimError> {
+    ) -> Result<InferenceResponse, EdgeImpulseError> {
         self.backend.infer(features, debug)
     }
 
     /// Get model parameters
-    pub fn parameters(&self) -> Result<&ModelParameters, EimError> {
+    pub fn parameters(&self) -> Result<&ModelParameters, EdgeImpulseError> {
         self.backend.parameters()
     }
 
     /// Get sensor type
-    pub fn sensor_type(&self) -> Result<SensorType, EimError> {
+    pub fn sensor_type(&self) -> Result<SensorType, EdgeImpulseError> {
         self.backend.sensor_type()
     }
 
     /// Get input size
-    pub fn input_size(&self) -> Result<usize, EimError> {
+    pub fn input_size(&self) -> Result<usize, EdgeImpulseError> {
         self.backend.input_size()
     }
 

@@ -5,12 +5,12 @@
 //! system that helps identify and debug issues when working with Edge Impulse
 //! models.
 //!
-//! The main error type is `EimError`, which encompasses all possible error
+//! The main error type is `EdgeImpulseError`, which encompasses all possible error
 //! conditions that can occur within the library, including both EIM and FFI modes.
 //!
 //! ## Error Types
 //!
-//! - **EimError**: Main error type for inference operations
+//! - **EdgeImpulseError**: Main error type for inference operations
 //! - **IngestionError**: Error type for data upload operations
 
 use std::error::Error;
@@ -24,7 +24,7 @@ use thiserror::Error;
 /// detailed error messages for each error case. It handles both internal errors
 /// and wrapped errors from external dependencies.
 #[derive(Error, Debug)]
-pub enum EimError {
+pub enum EdgeImpulseError {
     /// Indicates a failure in file system operations when accessing the EIM file.
     ///
     /// This error occurs when there are problems reading, writing, or accessing

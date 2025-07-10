@@ -12,7 +12,7 @@
 
 use clap::Parser;
 use edge_impulse_runner::types::ModelThreshold;
-use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
+use edge_impulse_runner::{EdgeImpulseModel, InferenceResult, EdgeImpulseError};
 use image::{self};
 use std::error::Error;
 // Removed unused import
@@ -89,7 +89,7 @@ fn process_image(
     features
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     // Initialize the model

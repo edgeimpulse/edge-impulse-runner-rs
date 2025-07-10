@@ -425,16 +425,16 @@ Some examples (particularly video capture) requires GStreamer to be installed:
 
 ## Error Handling
 
-The crate uses the `EimError` type to provide detailed error information:
+The crate uses the `EdgeImpulseError` type to provide detailed error information:
 
 ```rust
-use edge_impulse_runner::{EdgeImpulseModel, EimError};
+use edge_impulse_runner::{EdgeImpulseModel, EdgeImpulseError};
 
 match EdgeImpulseModel::new("model.eim") {
     Ok(mut model) => {
         match model.infer(vec![0.1, 0.2, 0.3], None) {
             Ok(result) => println!("Success!"),
-            Err(EimError::InvalidInput(msg)) => println!("Invalid input: {}", msg),
+            Err(EdgeImpulseError::InvalidInput(msg)) => println!("Invalid input: {}", msg),
             Err(e) => println!("Other error: {}", e),
         }
     },

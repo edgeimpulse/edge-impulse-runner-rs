@@ -17,7 +17,7 @@
 //!   cargo run --example audio_infer --features ffi -- --audio <path_to_wav> [--debug]
 
 use clap::Parser;
-use edge_impulse_runner::EdgeImpulseModel;
+use edge_impulse_runner::{EdgeImpulseModel, InferenceResult, EdgeImpulseError};
 #[cfg(feature = "ffi")]
 use edge_impulse_runner::ffi::ModelMetadata;
 use hound;
@@ -44,7 +44,7 @@ struct AudioInferParams {
     ffi: bool,
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let params = AudioInferParams::parse();
 
     // Create model instance based on mode
