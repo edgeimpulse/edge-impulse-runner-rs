@@ -295,7 +295,8 @@ To use the new FFI mode:
 #### Breaking Changes
 
 - **API Rename**: `EimModel` → `EdgeImpulseModel` (required update)
-- **Import Changes**: Update `use` statements to use new type name
+- **Error Type Rename**: `EimError` → `EdgeImpulseError` (required update)
+- **Import Changes**: Update `use` statements to use new type names
 - **Same Functionality**: All methods and behavior remain identical
 - **New features**: FFI mode requires the `ffi` Cargo feature
 
@@ -452,9 +453,9 @@ The library uses a trait-based backend abstraction that allows switching between
 
 ```rust
 pub trait InferenceBackend: Send + Sync {
-    fn new(config: BackendConfig) -> Result<Self, EimError> where Self: Sized;
-    fn infer(&mut self, features: Vec<f32>, debug: Option<bool>) -> Result<InferenceResponse, EimError>;
-    fn parameters(&self) -> Result<&ModelParameters, EimError>;
+    fn new(config: BackendConfig) -> Result<Self, EdgeImpulseError> where Self: Sized;
+    fn infer(&mut self, features: Vec<f32>, debug: Option<bool>) -> Result<InferenceResponse, EdgeImpulseError>;
+    fn parameters(&self) -> Result<&ModelParameters, EdgeImpulseError>;
     // ... other methods
 }
 ```
