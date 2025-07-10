@@ -47,7 +47,7 @@ pub struct ClassifyMessage {
 ///
 /// Received after sending a `HelloMessage`, contains essential information
 /// about the model's configuration and capabilities.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct ModelInfo {
     /// Indicates if the model initialization was successful
     pub success: bool,
