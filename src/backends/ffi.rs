@@ -138,14 +138,19 @@ impl InferenceBackend for FfiBackend {
 
         // Create a signal from the input features
         let signal = Signal::from_raw_data(&features).map_err(|e| {
-            EdgeImpulseError::InvalidOperation(format!("Failed to create signal from features: {}", e))
+            EdgeImpulseError::InvalidOperation(format!(
+                "Failed to create signal from features: {}",
+                e
+            ))
         })?;
 
         // Run the classifier
         let result = self
             .classifier
             .run_classifier(&signal, debug_enabled)
-            .map_err(|e| EdgeImpulseError::InvalidOperation(format!("Failed to run classifier: {}", e)))?;
+            .map_err(|e| {
+                EdgeImpulseError::InvalidOperation(format!("Failed to run classifier: {}", e))
+            })?;
 
         // Extract results based on model type
         let inference_result = if self.parameters.model_type == "object-detection" {

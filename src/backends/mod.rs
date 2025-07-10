@@ -74,7 +74,9 @@ pub mod eim;
 pub mod ffi;
 
 /// Factory function to create the appropriate backend
-pub fn create_backend(config: BackendConfig) -> Result<Box<dyn InferenceBackend>, EdgeImpulseError> {
+pub fn create_backend(
+    config: BackendConfig,
+) -> Result<Box<dyn InferenceBackend>, EdgeImpulseError> {
     match config {
         #[cfg(feature = "eim")]
         BackendConfig::Eim { path, socket_path } => {

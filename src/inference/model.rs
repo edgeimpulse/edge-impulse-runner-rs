@@ -54,7 +54,10 @@ impl EdgeImpulseModel {
     }
 
     /// Create a new model instance using EIM backend with debug output
-    pub fn new_with_debug<P: AsRef<Path>>(model_path: P, debug: bool) -> Result<Self, EdgeImpulseError> {
+    pub fn new_with_debug<P: AsRef<Path>>(
+        model_path: P,
+        debug: bool,
+    ) -> Result<Self, EdgeImpulseError> {
         let config = BackendConfig::Eim {
             path: model_path.as_ref().to_path_buf(),
             socket_path: None,

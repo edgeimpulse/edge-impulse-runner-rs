@@ -60,8 +60,9 @@ impl EimBackend {
         };
 
         // Always generate a temp socket path
-        let tempdir = tempdir()
-            .map_err(|e| EdgeImpulseError::ExecutionError(format!("Failed to create tempdir: {e}")))?;
+        let tempdir = tempdir().map_err(|e| {
+            EdgeImpulseError::ExecutionError(format!("Failed to create tempdir: {e}"))
+        })?;
         let mut rng = thread_rng();
         let socket_name = format!("eim_socket_{}", rng.r#gen::<u64>());
         let socket_path = tempdir.path().join(socket_name);
@@ -78,7 +79,9 @@ impl EimBackend {
         let process = std::process::Command::new(&path)
             .arg(&socket_path)
             .spawn()
-            .map_err(|e| EdgeImpulseError::ExecutionError(format!("Failed to start model process: {e}")))?;
+            .map_err(|e| {
+                EdgeImpulseError::ExecutionError(format!("Failed to start model process: {e}"))
+            })?;
 
         // Wait for the socket to be created and connect
         let socket = Self::connect_with_retry(&socket_path, Duration::from_secs(10))?;
@@ -107,8 +110,9 @@ impl EimBackend {
         use std::os::unix::fs::PermissionsExt;
 
         let path = path.as_ref();
-        let metadata = std::fs::metadata(path)
-            .map_err(|e| EdgeImpulseError::ExecutionError(format!("Failed to get file metadata: {e}")))?;
+        let metadata = std::fs::metadata(path).map_err(|e| {
+            EdgeImpulseError::ExecutionError(format!("Failed to get file metadata: {e}"))
+        })?;
 
         let perms = metadata.permissions();
         let current_mode = perms.mode();
@@ -117,14 +121,19 @@ impl EimBackend {
             let mut new_perms = perms;
             new_perms.set_mode(current_mode | 0o100); // Add executable bit for user only
             std::fs::set_permissions(path, new_perms).map_err(|e| {
-                EdgeImpulseError::ExecutionError(format!("Failed to set executable permissions: {e}"))
+                EdgeImpulseError::ExecutionError(format!(
+                    "Failed to set executable permissions: {e}"
+                ))
             })?;
         }
         Ok(())
     }
 
     /// Connect to the socket with retry logic
-    fn connect_with_retry(socket_path: &Path, timeout: Duration) -> Result<UnixStream, EdgeImpulseError> {
+    fn connect_with_retry(
+        socket_path: &Path,
+        timeout: Duration,
+    ) -> Result<UnixStream, EdgeImpulseError> {
         println!("Attempting to connect to socket: {}", socket_path.display());
         let start = Instant::now();
         while start.elapsed() < timeout {
@@ -151,8 +160,9 @@ impl EimBackend {
             hello: 1,
         };
 
-        let hello_json = serde_json::to_string(&hello)
-            .map_err(|e| EdgeImpulseError::InvalidOperation(format!("Failed to serialize hello: {e}")))?;
+        let hello_json = serde_json::to_string(&hello).map_err(|e| {
+            EdgeImpulseError::InvalidOperation(format!("Failed to serialize hello: {e}"))
+        })?;
 
         self.debug_message(&format!("Sending hello: {hello_json}"));
 
@@ -160,16 +170,16 @@ impl EimBackend {
         self.socket
             .write_all(hello_json.as_bytes())
             .map_err(|e| EdgeImpulseError::ExecutionError(format!("Failed to send hello: {e}")))?;
-        self.socket
-            .write_all(b"\n")
-            .map_err(|e| EdgeImpulseError::ExecutionError(format!("Failed to send newline: {e}")))?;
+        self.socket.write_all(b"\n").map_err(|e| {
+            EdgeImpulseError::ExecutionError(format!("Failed to send newline: {e}"))
+        })?;
 
         // Read the response
         let mut reader = BufReader::new(&self.socket);
         let mut response = String::new();
-        reader
-            .read_line(&mut response)
-            .map_err(|e| EdgeImpulseError::ExecutionError(format!("Failed to read hello response: {e}")))?;
+        reader.read_line(&mut response).map_err(|e| {
+            EdgeImpulseError::ExecutionError(format!("Failed to read hello response: {e}"))
+        })?;
 
         self.debug_message(&format!("Received hello response: {}", response.trim()));
 
@@ -217,10 +227,12 @@ impl EimBackend {
 
         self.socket
             .write_all(classify_json.as_bytes())
-            .map_err(|e| EdgeImpulseError::ExecutionError(format!("Failed to send classify: {e}")))?;
-        self.socket
-            .write_all(b"\n")
-            .map_err(|e| EdgeImpulseError::ExecutionError(format!("Failed to send newline: {e}")))?;
+            .map_err(|e| {
+                EdgeImpulseError::ExecutionError(format!("Failed to send classify: {e}"))
+            })?;
+        self.socket.write_all(b"\n").map_err(|e| {
+            EdgeImpulseError::ExecutionError(format!("Failed to send newline: {e}"))
+        })?;
 
         let mut reader = BufReader::new(&self.socket);
         let mut response_json = String::new();

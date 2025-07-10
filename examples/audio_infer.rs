@@ -17,9 +17,9 @@
 //!   cargo run --example audio_infer --features ffi -- --audio <path_to_wav> [--debug]
 
 use clap::Parser;
-use edge_impulse_runner::{EdgeImpulseModel, InferenceResult, EdgeImpulseError};
 #[cfg(feature = "ffi")]
 use edge_impulse_runner::ffi::ModelMetadata;
+use edge_impulse_runner::{EdgeImpulseError, EdgeImpulseModel, InferenceResult};
 use hound;
 use std::error::Error;
 use std::path::PathBuf;
