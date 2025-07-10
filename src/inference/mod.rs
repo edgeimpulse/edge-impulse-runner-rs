@@ -55,7 +55,10 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'cat {}'"#,
         let socket_path = temp_dir.path().join("test.socket");
 
         // Test with a non-existent file
-        let result = EdgeImpulseModel::new_with_socket(std::path::Path::new("unknown.eim"), socket_path.as_path());
+        let result = EdgeImpulseModel::new_with_socket(
+            std::path::Path::new("unknown.eim"),
+            socket_path.as_path(),
+        );
         match result {
             Err(EimError::ExecutionError(msg)) if msg.contains("No such file") => (),
             other => panic!("Expected ExecutionError for missing file, got {:?}", other),
@@ -100,7 +103,8 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'cat {}'"#,
         std::fs::rename(&mock_path, &mock_path_with_eim).unwrap();
 
         // Test the connection with the custom socket path
-        let result = EdgeImpulseModel::new_with_socket(mock_path_with_eim.as_path(), socket_path.as_path());
+        let result =
+            EdgeImpulseModel::new_with_socket(mock_path_with_eim.as_path(), socket_path.as_path());
         assert!(
             result.is_ok(),
             "Failed to create EIM model: {:?}",

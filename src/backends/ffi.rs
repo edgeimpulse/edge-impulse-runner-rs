@@ -1,11 +1,11 @@
 use super::{BackendConfig, InferenceBackend};
 use crate::error::EimError;
+use crate::ffi::{EdgeImpulseClassifier, ModelMetadata, Signal};
 use crate::inference::messages::InferenceResponse;
 use crate::types::{
     BoundingBox, ModelParameters, ModelThreshold, RunnerHelloHasAnomaly, SensorType,
     VisualAnomalyResult,
 };
-use crate::ffi::{EdgeImpulseClassifier, ModelMetadata, Signal};
 use std::sync::Arc;
 
 /// FFI backend implementation using Edge Impulse FFI bindings

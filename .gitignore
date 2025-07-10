@@ -6,3 +6,42 @@
 lib/*.a
 lib/*.so
 lib/*.dylib
+
+# macOS system files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# CMake build files
+build/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Compiled libraries
+*.a
+*.so
+*.dylib
+*.dll
+*.lib
+
+# Backup files
+*.bak
+*.backup

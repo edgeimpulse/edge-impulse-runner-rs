@@ -160,10 +160,10 @@
 
 pub mod backends;
 pub mod error;
+pub mod ffi;
 pub mod inference;
 pub mod ingestion;
 pub mod types;
-pub mod ffi;
 
 pub use inference::messages::{InferenceResponse, InferenceResult};
 

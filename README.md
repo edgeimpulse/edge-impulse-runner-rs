@@ -146,6 +146,37 @@ edge-impulse-runner = { version = "2.0.0", features = ["ffi"] }
 
 ## Quick Start
 
+### Automated Model Download (FFI Feature)
+If you enable the `ffi` feature, the build will use the official [`edge-impulse-ffi-rs`](https://github.com/edgeimpulse/edge-impulse-ffi-rs) crate from GitHub as a remote dependency. The model download logic is handled by the build script in the remote crate.
+
+To automatically download your Edge Impulse model during the build, set the following environment variables **before** building:
+
+```sh
+export EDGE_IMPULSE_PROJECT_ID=12345
+export EDGE_IMPULSE_API_KEY=ei_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+cargo clean
+cargo build --features ffi
+```
+
+- The model will only be downloaded if it is missing and these variables are set when the FFI crate is built.
+- If you build without the variables, the model will not be downloaded until you clean and rebuild with the variables set.
+
+**Note:**
+- The download process may take several minutes on the first build.
+- Never commit your API key to version control.
+
+### Manual Model Setup (Not Supported with Remote FFI Crate)
+Manual mode, where you place your Edge Impulse exported C++ model (including `edge-impulse-sdk/`, `model-parameters/`, etc.) in the local `model/` directory, is **not supported** when using the remote FFI crate from GitHub. The remote crate's build script cannot access your local `model/` directory.
+
+If you require manual model setup, you must use a local path override for the FFI crate in your `Cargo.toml`:
+
+```toml
+[dependencies]
+edge-impulse-ffi-rs = { path = "../edge-impulse-ffi-rs", optional = true }
+```
+
+Otherwise, use the automated download mode as described above.
+
 ### EIM Mode (Default)
 
 ```rust
@@ -552,3 +583,40 @@ When errors occur:
 ## License
 
 BSD-3-Clause
+
+## Troubleshooting Automated Downloads
+
+### Common Issues
+
+**Model is not downloaded or you see warnings like `Could not find edge-impulse-ffi-rs build output directory`:**
+- Make sure the environment variables are set:
+  - `EDGE_IMPULSE_PROJECT_ID`
+  - `EDGE_IMPULSE_API_KEY`
+- Run:
+  ```sh
+  cargo clean
+  cargo build --features ffi
+  ```
+- The FFI crate is always pulled from the official GitHub repository, not from a local path.
+
+**Download fails with authentication error:**
+- Verify your API key is correct and has access to the project
+- Check that the project ID exists and is accessible
+- Ensure environment variables are set correctly: `EDGE_IMPULSE_PROJECT_ID` and `EDGE_IMPULSE_API_KEY`
+
+**Download times out:**
+- The download process can take several minutes for large models
+- Check your internet connection
+
+**Build job fails:**
+- Ensure your Edge Impulse project has a valid model deployed
+- Check the Edge Impulse Studio for any build errors
+- Verify the project has the correct deployment target (Linux)
+
+### Manual Override
+
+If automated download fails, you can:
+1. Manually download the model from Edge Impulse Studio
+2. Extract it to the `model/` directory
+3. Unset the environment variables: `unset EDGE_IMPULSE_PROJECT_ID EDGE_IMPULSE_API_KEY`
+4. Build normally with `cargo build`

@@ -1,2 +1,0 @@
-# This file ensures the lib/ directory is tracked in git
-# The actual library files (*.a, *.so, *.dylib) are ignored

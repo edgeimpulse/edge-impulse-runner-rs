@@ -1,3 +1,0 @@
-[submodule "ffi"]
-	path = ffi
-	url = git@github.com:ferjm/edge-impulse-ffi-rs.git
