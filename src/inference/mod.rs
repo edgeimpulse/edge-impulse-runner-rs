@@ -104,8 +104,10 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'cat {}'"#,
         std::fs::rename(&mock_path, &mock_path_with_eim).unwrap();
 
         // Test the connection with the custom socket path
-        let result =
-            EdgeImpulseModel::new_eim_with_socket(mock_path_with_eim.as_path(), socket_path.as_path());
+        let result = EdgeImpulseModel::new_eim_with_socket(
+            mock_path_with_eim.as_path(),
+            socket_path.as_path(),
+        );
         assert!(
             result.is_ok(),
             "Failed to create EIM model: {:?}",
@@ -145,7 +147,8 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'cat {}'"#,
         }
 
         // Test that we get the expected timeout error
-        let result = EdgeImpulseModel::new_eim_with_socket(model_path.as_path(), socket_path.as_path());
+        let result =
+            EdgeImpulseModel::new_eim_with_socket(model_path.as_path(), socket_path.as_path());
         assert!(
             matches!(result,
                 Err(EdgeImpulseError::SocketError(ref msg)) if msg.contains("Timeout waiting for socket")

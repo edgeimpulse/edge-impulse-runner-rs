@@ -230,8 +230,7 @@ impl InferenceResult {
             let result = unsafe {
                 std::alloc::alloc_zeroed(std::alloc::Layout::new::<
                     edge_impulse_ffi_rs::bindings::ei_impulse_result_t,
-                >())
-                    as *mut edge_impulse_ffi_rs::bindings::ei_impulse_result_t
+                >()) as *mut edge_impulse_ffi_rs::bindings::ei_impulse_result_t
             };
             Self { result }
         }
