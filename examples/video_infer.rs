@@ -57,9 +57,9 @@ struct VideoInferParams {
     #[clap(long)]
     thresholds: Option<String>,
 
-    /// Use FFI mode instead of EIM mode
+    /// Use EIM mode (legacy, not recommended)
     #[clap(long)]
-    ffi: bool,
+    eim: bool,
 }
 
 // macOS specific run loop handling
@@ -324,10 +324,10 @@ fn process_sample(
 
 /// Initialize the Edge Impulse model and extract its parameters
 async fn initialize_model(
-    model_path: Option<&str>,
+    _model_path: Option<&str>,
     debug: bool,
     thresholds: Option<&str>,
-    ffi_mode: bool,
+    eim_mode: bool,
 ) -> Result<
     (
         Arc<Mutex<EdgeImpulseModel>>,
@@ -335,10 +335,30 @@ async fn initialize_model(
     ),
     Box<dyn std::error::Error>,
 > {
-    let model_instance = if ffi_mode {
-        // FFI mode - no model file needed
-        println!("Using FFI mode");
-        let model = EdgeImpulseModel::new_ffi(debug)?;
+    let model_instance = if eim_mode {
+        // EIM mode - model file required
+        #[cfg(feature = "eim")]
+        {
+            println!("Using EIM mode (legacy)");
+            let model_path = _model_path.ok_or("Model path is required for EIM mode")?;
+            if debug {
+                EdgeImpulseModel::new_eim_with_debug(model_path, true)?
+            } else {
+                EdgeImpulseModel::new_eim(model_path)?
+            }
+        }
+        #[cfg(not(feature = "eim"))]
+        {
+            return Err("EIM mode requires the 'eim' feature to be enabled".into());
+        }
+    } else {
+        // FFI mode - no model file needed (default)
+        println!("Using FFI mode (default)");
+        let model = if debug {
+            EdgeImpulseModel::new_with_debug(true)?
+        } else {
+            EdgeImpulseModel::new()?
+        };
         #[cfg(feature = "ffi")]
         {
             let metadata = ModelMetadata::get();
@@ -387,10 +407,6 @@ async fn initialize_model(
             println!("===============\n");
         }
         model
-    } else {
-        // EIM mode - model file required
-        let model_path = model_path.ok_or("Model path is required for EIM mode")?;
-        EdgeImpulseModel::new_with_debug(model_path, debug)?
     };
 
     // Set thresholds if provided (not supported in current backend abstraction)
@@ -429,7 +445,7 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
         params.model.as_deref(),
         params.debug,
         params.thresholds.as_deref(),
-        params.ffi,
+        params.eim,
     )
     .await?;
 

@@ -15,8 +15,8 @@
 
 This Rust library provides two modes for running Edge Impulse models:
 
-- **EIM Mode (Default)**: Uses Edge Impulse's EIM (Edge Impulse Model) format for inference
-- **FFI Mode**: Uses direct C++ SDK integration via FFI bindings
+- **FFI Mode (Default & Recommended)**: Uses direct C++ SDK integration via FFI bindings. This is the default and recommended mode for all new applications.
+- **EIM Mode (Legacy/Compatibility)**: Uses Edge Impulse's EIM (Edge Impulse Model) format for inference. This mode is only for backward compatibility and is not recommended for new projects due to performance penalties.
 
 ## Features
 
@@ -50,65 +50,51 @@ This Rust library provides two modes for running Edge Impulse models:
 
 ## Quick Start
 
-### EIM Mode (Default)
-```sh
-cargo build
-cargo run --example basic_infer -- --features "0.1,0.2,0.3"
-```
-
-### FFI Mode (C++ SDK Integration)
+### FFI Mode (Default & Recommended)
 Set your Edge Impulse project credentials and build:
 
 ```sh
 export EI_PROJECT_ID=12345
 export EI_API_KEY=ei_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 cargo clean
-cargo build --features ffi
+cargo build
 ```
 
 This will automatically download your model from Edge Impulse and build the C++ SDK bindings.
 
 **Note:** The download process may take several minutes on the first build. Never commit your API key to version control.
 
-### Manual Model Setup (Not Supported with Remote FFI Crate)
-Manual mode, where you place your Edge Impulse exported C++ model in the local `model/` directory, is **not supported** when using the remote FFI crate from GitHub. The remote crate's build script cannot access your local `model/` directory.
+### EIM Mode (Legacy/Compatibility)
+> **Not recommended except for legacy/dev use.**
 
-If you require manual model setup, you must use a local path override for the FFI crate in your `Cargo.toml`:
-
-```toml
-[dependencies]
-edge-impulse-ffi-rs = { path = "../edge-impulse-ffi-rs", optional = true }
+```sh
+cargo build --no-default-features --features eim
+cargo run --example basic_infer -- --model path/to/model.eim --features "0.1,0.2,0.3"
 ```
 
 ---
 
 ## Examples
 
-### Basic Inference
+### Basic Inference (FFI mode - default)
 ```sh
-# EIM mode
 cargo run --example basic_infer -- --features "0.1,0.2,0.3"
-
-# FFI mode
-cargo run --example basic_infer --features ffi -- --ffi --features "0.1,0.2,0.3"
 ```
 
-### Image Inference
+### Image Inference (FFI mode - default)
 ```sh
-# EIM mode
 cargo run --example image_infer -- --image /path/to/image.png
-
-# FFI mode
-cargo run --example image_infer --features ffi -- --ffi --image /path/to/image.png
 ```
 
-### Audio Inference
+### Audio Inference (FFI mode - default)
 ```sh
-# EIM mode
 cargo run --example audio_infer -- --audio /path/to/audio.wav
+```
 
-# FFI mode
-cargo run --example audio_infer --features ffi -- --ffi --audio /path/to/audio.wav
+### EIM Mode (Legacy)
+```sh
+# For EIM mode, use the --eim flag and provide a model path
+cargo run --example basic_infer -- --eim --model path/to/model.eim --features "0.1,0.2,0.3"
 ```
 
 ---
@@ -122,26 +108,20 @@ Add this to your `Cargo.toml`:
 edge-impulse-runner = "2.0.0"
 ```
 
-For FFI mode, add the `ffi` feature:
-```toml
-[dependencies]
-edge-impulse-runner = { version = "2.0.0", features = ["ffi"] }
-```
-
-And set the `EI_PROJECT_ID` and `EI_API_KEY` environment variables.
+FFI mode is enabled by default. Set the `EI_PROJECT_ID` and `EI_API_KEY` environment variables.
 
 ---
 
 ## Usage
 
-### EIM Mode (Default)
+### FFI Mode (Default & Recommended)
 
 ```rust
 use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a new model instance using EIM binary
-    let mut model = EdgeImpulseModel::new("path/to/model.eim")?;
+    // Create a new model instance using FFI (default)
+    let mut model = EdgeImpulseModel::new()?;
 
     // Prepare normalized features (e.g., image pixels, audio samples)
     let features: Vec<f32> = vec![0.1, 0.2, 0.3];
@@ -177,31 +157,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### FFI Mode
+#### FFI Mode with Debug
+```rust
+let mut model = EdgeImpulseModel::new_with_debug(true)?;
+```
+
+### EIM Mode (Legacy/Compatibility)
+> **Not recommended except for legacy/dev use.**
 
 ```rust
 use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a new model instance using FFI (requires "ffi" feature)
-    let mut model = EdgeImpulseModel::new_ffi(false)?; // false = no debug
-
-    // Prepare normalized features
-    let features: Vec<f32> = vec![0.1, 0.2, 0.3];
-
-    // Run inference
-    let result = model.infer(features, None)?;
-
-    // Process results (same as EIM mode)
-    match result.result {
-        InferenceResult::Classification { classification } => {
-            println!("Classification: {:?}", classification);
-        }
-        // ... handle other result types
-    }
-    Ok(())
+    // Create a new model instance using EIM (legacy)
+    let mut model = EdgeImpulseModel::new_eim("path/to/model.eim")?;
+    // ...
 }
 ```
+
+---
 
 ## Cargo Features
 
@@ -209,23 +183,13 @@ The crate supports different backends through Cargo features:
 
 ```toml
 [dependencies]
-edge-impulse-runner = { version = "2.0.0", features = ["ffi"] }
+edge-impulse-runner = { version = "2.0.0" }
 ```
 
 ### Available Features
 
-- **`eim`** (default): Enable EIM binary communication mode
-- **`ffi`**: Enable FFI direct mode (requires `edge-impulse-ffi-rs` dependency)
-
-## Performance Comparison
-
-| Aspect | EIM Mode | FFI Mode |
-|--------|----------|----------|
-| **Startup Time** | Slower (process spawn + socket setup) | Faster (direct initialization) |
-| **Inference Latency** | Higher (IPC overhead) | Lower (direct calls) |
-| **Memory Usage** | Higher (separate process) | Lower (shared memory) |
-| **Deployment** | Requires `.eim` files | Requires compiled model |
-| **Flexibility** | Dynamic model loading | Static model compilation |
+- **`ffi`** (default): Enable FFI direct mode (requires `edge-impulse-ffi-rs` dependency)
+- **`eim`**: Enable EIM binary communication mode (legacy)
 
 ---
 
@@ -235,7 +199,7 @@ Version 2.0.0 introduces significant improvements and new features while maintai
 
 ### What's New in 2.0.0
 
-#### 🚀 **FFI Mode Support**
+#### 🚀 **FFI Mode is now Default & Recommended**
 - **Direct FFI calls**: New FFI backend for improved performance
 - **No inter-process communication**: Eliminates socket overhead
 - **Lower latency**: Direct calls to Edge Impulse C++ SDK
@@ -243,62 +207,15 @@ Version 2.0.0 introduces significant improvements and new features while maintai
 
 #### 🔄 **Unified API**
 - **Consistent naming**: `EimModel` renamed to `EdgeImpulseModel` for clarity
-- **Dual backend support**: Same API works with both EIM and FFI modes
+- **Dual backend support**: Same API works with both FFI and EIM modes
 - **Feature-based selection**: Choose backend via Cargo features
+- **Constructor change**: `EdgeImpulseModel::new()` is now FFI, `new_eim()` is for legacy EIM
 
 #### 🛠 **Enhanced Architecture**
 - **Trait-based backends**: Clean abstraction for different inference engines
-- **Improved error handling**: Better error types and messages
-- **Consistent feature processing**: Unified approach for both modes
 
-### Migration Guide
-
-#### For Existing 1.0.0 Users
-
-**Required Update (Breaking Change)**
-```rust
-// 1.0.0 code (no longer works)
-use edge_impulse_runner::EimModel;  // ❌ EimModel no longer exists
-
-let mut model = EimModel::new("model.eim")?;
-let result = model.infer(features, None)?;
-```
-
-**Updated for 2.0.0**
-```rust
-// 2.0.0 code (required)
-use edge_impulse_runner::EdgeImpulseModel;  // ✅ New unified API
-
-let mut model = EdgeImpulseModel::new("model.eim")?;
-let result = model.infer(features, None)?;
-```
-
-#### Adding FFI Support
-
-To use the new FFI mode:
-
-1. **Update Cargo.toml**:
-   ```toml
-   [dependencies]
-   edge-impulse-runner = { version = "2.0.0", features = ["ffi"] }
-   ```
-
-2. **Use FFI mode**:
-   ```rust
-   use edge_impulse_runner::EdgeImpulseModel;
-
-   // FFI mode (requires compiled model)
-   let mut model = EdgeImpulseModel::new_ffi(false)?;
-   let result = model.infer(features, None)?;
-   ```
-
-#### Breaking Changes
-
-- **API Rename**: `EimModel` → `EdgeImpulseModel` (required update)
-- **Error Type Rename**: `EimError` → `EdgeImpulseError` (required update)
-- **Import Changes**: Update `use` statements to use new type names
-- **Same Functionality**: All methods and behavior remain identical
-- **New features**: FFI mode requires the `ffi` Cargo feature
+#### ⚠️ **EIM Mode is Legacy**
+- EIM mode is only for backward compatibility and is not recommended for new projects.
 
 ---
 

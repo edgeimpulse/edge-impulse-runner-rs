@@ -9,16 +9,19 @@
 //!
 //! The crate supports two inference modes:
 //!
-//! ### EIM Mode (Default)
-//! - Run Edge Impulse models (.eim files) using binary communication
-//! - Requires model files to be present on the filesystem
-//! - Compatible with all Edge Impulse deployment targets
-//!
-//! ### FFI Mode
+//! ### FFI Mode (Default - Recommended)
 //! - Direct FFI calls to the Edge Impulse C++ SDK
 //! - Models are compiled into the binary
-//! - Faster startup and inference times
-//! - Requires the `ffi` feature to be enabled
+//! - **Superior performance**: Faster startup and inference times
+//! - **No external dependencies**: No need for model files on filesystem
+//! - **Production ready**: This is the recommended mode for all new applications
+//!
+//! ### EIM Mode (Legacy - Backward Compatibility)
+//! - Run Edge Impulse models (.eim files) using binary communication
+//! - Requires model files to be present on the filesystem
+//! - **Performance penalty**: Slower due to IPC overhead
+//! - **Legacy support**: Maintained for backward compatibility
+//! - **Development friendly**: Useful for rapid prototyping and testing
 //!
 //! ## Model Support
 //!
@@ -42,13 +45,13 @@
 //!
 //! ## Quick Start Examples
 //!
-//! ### EIM Mode (Default)
+//! ### FFI Mode (Default - Recommended)
 //! ```no_run
 //! use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Create a new model instance with EIM file
-//!     let mut model = EdgeImpulseModel::new("path/to/model.eim")?;
+//!     // Create a new model instance with FFI mode (default)
+//!     let mut model = EdgeImpulseModel::new()?;
 //!
 //!     // Prepare normalized features (e.g., image pixels, audio samples)
 //!     let features: Vec<f32> = vec![0.1, 0.2, 0.3];
@@ -98,13 +101,13 @@
 //! }
 //! ```
 //!
-//! ### FFI Mode
+//! ### EIM Mode (Legacy - Backward Compatibility)
 //! ```no_run
 //! use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Create a new model instance with FFI mode
-//!     let mut model = EdgeImpulseModel::new_ffi(false)?;
+//!     // Create a new model instance with EIM file (legacy mode)
+//!     let mut model = EdgeImpulseModel::new_eim("path/to/model.eim")?;
 //!
 //!     // Prepare normalized features (e.g., image pixels, audio samples)
 //!     let features: Vec<f32> = vec![0.1, 0.2, 0.3];
@@ -112,7 +115,7 @@
 //!     // Run inference
 //!     let result = model.infer(features, None)?;
 //!
-//!     // Process results (same as EIM mode)
+//!     // Process results (same as FFI mode)
 //!     match result.result {
 //!         InferenceResult::Classification { classification } => {
 //!             println!("Classification: {:?}", classification);

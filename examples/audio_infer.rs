@@ -38,19 +38,39 @@ struct AudioInferParams {
     #[clap(short, long)]
     debug: bool,
 
-    /// Use FFI mode instead of EIM mode
+    /// Use EIM mode (legacy, not recommended)
     #[clap(long)]
-    ffi: bool,
+    eim: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let params = AudioInferParams::parse();
 
     // Create model instance based on mode
-    let mut model = if params.ffi {
-        // FFI mode - no model file needed
-        println!("Using FFI mode");
-        let model = EdgeImpulseModel::new_ffi(params.debug)?;
+    let mut model = if params.eim {
+        // EIM mode - model file required
+        #[cfg(feature = "eim")]
+        {
+            println!("Using EIM mode (legacy)");
+            let model_path = params.model.ok_or("Model path is required for EIM mode")?;
+            if params.debug {
+                EdgeImpulseModel::new_eim_with_debug(&model_path, true)?
+            } else {
+                EdgeImpulseModel::new_eim(&model_path)?
+            }
+        }
+        #[cfg(not(feature = "eim"))]
+        {
+            return Err("EIM mode requires the 'eim' feature to be enabled".into());
+        }
+    } else {
+        // FFI mode - no model file needed (default)
+        println!("Using FFI mode (default)");
+        let model = if params.debug {
+            EdgeImpulseModel::new_with_debug(true)?
+        } else {
+            EdgeImpulseModel::new()?
+        };
         #[cfg(feature = "ffi")]
         {
             let metadata = ModelMetadata::get();
@@ -99,10 +119,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("===============\n");
         }
         model
-    } else {
-        // EIM mode - model file required
-        let model_path = params.model.ok_or("Model path is required for EIM mode")?;
-        EdgeImpulseModel::new(&model_path)?
     };
 
     let audio_path = PathBuf::from(&params.audio);

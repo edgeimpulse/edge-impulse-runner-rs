@@ -38,11 +38,10 @@ urlencoding = "2.1.3"
 rand = "0.8"
 tempfile = "3.10.0"
 
-# Add the FFI crate as an optional dependency
 edge-impulse-ffi-rs = { git = "https://github.com/edgeimpulse/edge-impulse-ffi-rs.git", optional = true }
 
 [features]
-default = ["eim"]
+default = ["ffi"]
 eim = []
 ffi = ["edge-impulse-ffi-rs"]
 

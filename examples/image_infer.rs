@@ -35,9 +35,9 @@ struct Args {
     #[arg(short, long, default_value_t = false)]
     debug: bool,
 
-    /// Use FFI mode instead of EIM mode
+    /// Use EIM mode (legacy, not recommended)
     #[arg(long, default_value_t = false)]
-    ffi: bool,
+    eim: bool,
 }
 
 fn process_image(
@@ -91,10 +91,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     // Initialize the model
-    let mut model = if args.ffi {
-        // FFI mode - no model file needed
-        println!("Using FFI mode");
-        let model = EdgeImpulseModel::new_ffi(args.debug)?;
+    let mut model = if args.eim {
+        // EIM mode - model file required
+        #[cfg(feature = "eim")]
+        {
+            println!("Using EIM mode (legacy)");
+            let model_path = args.model.ok_or("Model path is required for EIM mode")?;
+            if args.debug {
+                EdgeImpulseModel::new_eim_with_debug(&model_path, true)?
+            } else {
+                EdgeImpulseModel::new_eim(&model_path)?
+            }
+        }
+        #[cfg(not(feature = "eim"))]
+        {
+            return Err("EIM mode requires the 'eim' feature to be enabled".into());
+        }
+    } else {
+        // FFI mode - no model file needed (default)
+        println!("Using FFI mode (default)");
+        let model = if args.debug {
+            EdgeImpulseModel::new_with_debug(true)?
+        } else {
+            EdgeImpulseModel::new()?
+        };
 
         // Print model metadata for FFI mode
         #[cfg(feature = "ffi")]
@@ -150,14 +170,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         model
-    } else {
-        // EIM mode - model file required
-        let model_path = args.model.ok_or("Model path is required for EIM mode")?;
-        EdgeImpulseModel::new_with_debug(&model_path, args.debug)?
     };
 
     // Get model parameters
-    let model_params = model.parameters()?;
+    let model_params = model.parameters()?.clone();
 
     // Get the min_anomaly_score threshold
     let min_anomaly_score = model_params
@@ -166,10 +182,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .find_map(|t| match t {
             ModelThreshold::AnomalyGMM {
                 min_anomaly_score, ..
-            } => Some(*min_anomaly_score),
+            } => Some(min_anomaly_score),
             _ => None,
         })
-        .unwrap_or(6.0);
+        .unwrap_or(&6.0);
 
     // Print model parameters if debug is enabled
     if args.debug {
