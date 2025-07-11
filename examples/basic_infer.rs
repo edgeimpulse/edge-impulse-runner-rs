@@ -38,9 +38,9 @@ struct Args {
     #[arg(short, long, default_value_t = false)]
     debug: bool,
 
-    /// Use FFI mode instead of EIM mode
+    /// Use EIM mode instead of FFI mode (legacy)
     #[arg(long, default_value_t = false)]
-    ffi: bool,
+    eim: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -54,10 +54,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
 
     // Create model instance based on mode
-    let mut model = if args.ffi {
-        // FFI mode - no model file needed
-        println!("Using FFI mode");
-        let model = EdgeImpulseModel::new_ffi(args.debug)?;
+    let mut model = if args.eim {
+        // EIM mode - model file required
+        println!("Using EIM mode (legacy)");
+        let model_path = args.model.ok_or("Model path is required for EIM mode")?;
+
+        // Adjust path to be relative to project root if not absolute
+        let model_path = if !model_path.is_absolute() {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(&model_path)
+        } else {
+            model_path
+        };
+
+        if args.debug {
+            println!("Loading model from: {}", model_path.display());
+        }
+        #[cfg(feature = "eim")]
+        {
+            EdgeImpulseModel::new_eim(&model_path)?
+        }
+        #[cfg(not(feature = "eim"))]
+        {
+            return Err("EIM mode requires the 'eim' feature to be enabled".into());
+        }
+    } else {
+        // FFI mode - no model file needed (default)
+        println!("Using FFI mode (default)");
+        let model = if args.debug {
+            EdgeImpulseModel::new_with_debug(true)?
+        } else {
+            EdgeImpulseModel::new()?
+        };
         #[cfg(feature = "ffi")]
         {
             let metadata = ModelMetadata::get();
@@ -106,21 +133,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("===============\n");
         }
         model
-    } else {
-        // EIM mode - model file required
-        let model_path = args.model.ok_or("Model path is required for EIM mode")?;
-
-        // Adjust path to be relative to project root if not absolute
-        let model_path = if !model_path.is_absolute() {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(&model_path)
-        } else {
-            model_path
-        };
-
-        if args.debug {
-            println!("Loading model from: {}", model_path.display());
-        }
-        EdgeImpulseModel::new(&model_path)?
     };
 
     // Run inference
@@ -174,10 +186,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .find_map(|t| match t {
                     ModelThreshold::AnomalyGMM {
                         min_anomaly_score, ..
-                    } => Some(*min_anomaly_score),
+                    } => Some(min_anomaly_score),
                     _ => None,
                 })
-                .unwrap_or(6.0);
+                .unwrap_or(&6.0);
             println!("  min_anomaly_score: {}", min_anomaly_score);
 
             // Normalize all scores using the model's normalization method

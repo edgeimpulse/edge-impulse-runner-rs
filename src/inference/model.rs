@@ -2,6 +2,7 @@ use crate::backends::{BackendConfig, InferenceBackend, create_backend};
 use crate::error::EdgeImpulseError;
 use crate::inference::messages::InferenceResponse;
 use crate::types::{ModelParameters, SensorType, VisualAnomalyResult};
+#[cfg(feature = "eim")]
 use std::path::Path;
 
 /// Main Edge Impulse model interface that abstracts over different backends
@@ -15,23 +16,53 @@ use std::path::Path;
 /// ```no_run
 /// use edge_impulse_runner::EdgeImpulseModel;
 ///
-/// // EIM mode (default)
-/// let mut model = EdgeImpulseModel::new("model.eim")?;
-///
-/// // FFI mode
-/// let mut model = EdgeImpulseModel::new_ffi(false)?;
+/// // FFI mode (default - recommended)
+/// let mut model = EdgeImpulseModel::new()?;
 ///
 /// // Run inference
 /// let result = model.infer(vec![0.1, 0.2, 0.3], None)?;
 /// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+///
+/// ```ignore
+/// // EIM mode (legacy - backward compatibility)
+/// // This example requires the "eim" feature to be enabled
+/// let mut model = EdgeImpulseModel::new_eim("model.eim")?;
+///
+/// // Run inference
+/// let result = model.infer(vec![0.1, 0.2, 0.3], None)?;
 /// ```
 pub struct EdgeImpulseModel {
     backend: Box<dyn InferenceBackend>,
 }
 
 impl EdgeImpulseModel {
-    /// Create a new model instance using EIM backend
-    pub fn new<P: AsRef<Path>>(model_path: P) -> Result<Self, EdgeImpulseError> {
+    /// Create a new model instance using FFI backend (default - recommended)
+    ///
+    /// This is the recommended constructor for all new applications. FFI mode provides
+    /// superior performance with faster startup and inference times.
+    pub fn new() -> Result<Self, EdgeImpulseError> {
+        let config = BackendConfig::Ffi { debug: false };
+        let backend = create_backend(config)?;
+        Ok(Self { backend })
+    }
+
+    /// Create a new model instance using FFI backend with debug output
+    pub fn new_with_debug(debug: bool) -> Result<Self, EdgeImpulseError> {
+        let config = BackendConfig::Ffi { debug };
+        let mut backend = create_backend(config)?;
+        if debug {
+            backend.set_debug_callback(Box::new(|msg| println!("[DEBUG] {msg}")));
+        }
+        Ok(Self { backend })
+    }
+
+    /// Create a new model instance using EIM backend (legacy - backward compatibility)
+    ///
+    /// This constructor is provided for backward compatibility. EIM mode has performance
+    /// penalties due to IPC overhead. Use `new()` for better performance.
+    #[cfg(feature = "eim")]
+    pub fn new_eim<P: AsRef<Path>>(model_path: P) -> Result<Self, EdgeImpulseError> {
         let config = BackendConfig::Eim {
             path: model_path.as_ref().to_path_buf(),
             socket_path: None,
@@ -41,7 +72,8 @@ impl EdgeImpulseModel {
     }
 
     /// Create a new model instance using EIM backend with custom socket path
-    pub fn new_with_socket<P: AsRef<Path>>(
+    #[cfg(feature = "eim")]
+    pub fn new_eim_with_socket<P: AsRef<Path>>(
         model_path: P,
         socket_path: P,
     ) -> Result<Self, EdgeImpulseError> {
@@ -54,7 +86,8 @@ impl EdgeImpulseModel {
     }
 
     /// Create a new model instance using EIM backend with debug output
-    pub fn new_with_debug<P: AsRef<Path>>(
+    #[cfg(feature = "eim")]
+    pub fn new_eim_with_debug<P: AsRef<Path>>(
         model_path: P,
         debug: bool,
     ) -> Result<Self, EdgeImpulseError> {
@@ -62,16 +95,6 @@ impl EdgeImpulseModel {
             path: model_path.as_ref().to_path_buf(),
             socket_path: None,
         };
-        let mut backend = create_backend(config)?;
-        if debug {
-            backend.set_debug_callback(Box::new(|msg| println!("[DEBUG] {msg}")));
-        }
-        Ok(Self { backend })
-    }
-
-    /// Create a new model instance using FFI backend
-    pub fn new_ffi(debug: bool) -> Result<Self, EdgeImpulseError> {
-        let config = BackendConfig::Ffi { debug };
         let mut backend = create_backend(config)?;
         if debug {
             backend.set_debug_callback(Box::new(|msg| println!("[DEBUG] {msg}")));

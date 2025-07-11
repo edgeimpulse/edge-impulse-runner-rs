@@ -228,11 +228,9 @@ impl InferenceResult {
         #[cfg(feature = "ffi")]
         {
             let result = unsafe {
-                let ptr = std::alloc::alloc_zeroed(std::alloc::Layout::new::<
+                std::alloc::alloc_zeroed(std::alloc::Layout::new::<
                     edge_impulse_ffi_rs::bindings::ei_impulse_result_t,
-                >())
-                    as *mut edge_impulse_ffi_rs::bindings::ei_impulse_result_t;
-                ptr
+                >()) as *mut edge_impulse_ffi_rs::bindings::ei_impulse_result_t
             };
             Self { result }
         }
@@ -338,9 +336,9 @@ impl InferenceResult {
                 let result = &*self.result;
                 let t = &result.timing;
                 TimingResult {
-                    dsp: t.dsp as i32,
-                    classification: t.classification as i32,
-                    anomaly: t.anomaly as i32,
+                    dsp: t.dsp,
+                    classification: t.classification,
+                    anomaly: t.anomaly,
                 }
             }
         }
@@ -498,7 +496,11 @@ impl EdgeImpulseClassifier {
     }
 
     /// Run inference on pre-processed features
-    pub fn run_inference(
+    ///
+    /// # Safety
+    /// This function is unsafe because it takes a raw pointer `fmatrix` that may be dereferenced.
+    /// The caller must ensure the pointer is valid and points to valid memory.
+    pub unsafe fn run_inference(
         &self,
         _handle: &mut EdgeImpulseHandle,
         #[cfg(feature = "ffi")] fmatrix: *mut edge_impulse_ffi_rs::bindings::ei_feature_t,
