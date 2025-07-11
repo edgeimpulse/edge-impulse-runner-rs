@@ -8,6 +8,7 @@ license = "BSD-3-Clause"
 homepage = "https://github.com/edgeimpulse/edge-impulse-runner-rs"
 repository = "https://github.com/edgeimpulse/edge-impulse-runner-rs"
 readme = "README.md"
+build = "build.rs"
 keywords = ["ai", "ml", "edgeai", "tinyml", "edgeimpulse"]
 categories = [
     "embedded",
