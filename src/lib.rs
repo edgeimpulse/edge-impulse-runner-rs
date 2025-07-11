@@ -150,20 +150,25 @@
 //! ```
 //!
 //! #### FFI Mode with Debug
-//! ```rust
-//! let mut model = EdgeImpulseModel::new_with_debug(true)?;
+//! ```no_run
+//! use edge_impulse_runner::EdgeImpulseModel;
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let mut model = EdgeImpulseModel::new_with_debug(true)?;
+//!     Ok(())
+//! }
 //! ```
 //!
 //! ### EIM Mode (Legacy/Compatibility)
 //! > **Not recommended except for legacy/dev use.**
 //!
-//! ```rust
+//! ```no_run
 //! use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // Create a new model instance using EIM (legacy)
 //!     let mut model = EdgeImpulseModel::new_eim("path/to/model.eim")?;
 //!     // ...
+//!     Ok(())
 //! }
 //! ```
 //!
@@ -371,6 +376,8 @@
 //! The library uses a trait-based backend abstraction that allows switching between different inference engines:
 //!
 //! ```rust
+//! use edge_impulse_runner::{backends::BackendConfig, EdgeImpulseError, InferenceResponse, ModelParameters};
+//!
 //! pub trait InferenceBackend: Send + Sync {
 //!     fn new(config: BackendConfig) -> Result<Self, EdgeImpulseError> where Self: Sized;
 //!     fn infer(&mut self, features: Vec<f32>, debug: Option<bool>) -> Result<InferenceResponse, EdgeImpulseError>;
