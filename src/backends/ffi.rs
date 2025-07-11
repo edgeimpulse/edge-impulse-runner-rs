@@ -8,6 +8,9 @@ use crate::types::{
 };
 use std::sync::Arc;
 
+/// Type alias for the debug callback to reduce complexity
+type DebugCallback = Arc<dyn Fn(&str) + Send + Sync>;
+
 /// FFI backend implementation using Edge Impulse FFI bindings
 pub struct FfiBackend {
     /// Cached model parameters
@@ -15,7 +18,7 @@ pub struct FfiBackend {
     /// Edge Impulse classifier instance
     classifier: EdgeImpulseClassifier,
     /// Debug callback
-    debug_callback: Option<Arc<dyn Fn(&str) + Send + Sync>>,
+    debug_callback: Option<DebugCallback>,
 }
 
 impl FfiBackend {
@@ -31,8 +34,7 @@ impl FfiBackend {
         let mut classifier = EdgeImpulseClassifier::new();
         classifier.init().map_err(|e| {
             EdgeImpulseError::InvalidOperation(format!(
-                "Failed to initialize Edge Impulse classifier: {}",
-                e
+                "Failed to initialize Edge Impulse classifier: {e}"
             ))
         })?;
 
@@ -139,8 +141,7 @@ impl InferenceBackend for FfiBackend {
         // Create a signal from the input features
         let signal = Signal::from_raw_data(&features).map_err(|e| {
             EdgeImpulseError::InvalidOperation(format!(
-                "Failed to create signal from features: {}",
-                e
+                "Failed to create signal from features: {e}"
             ))
         })?;
 
@@ -149,7 +150,7 @@ impl InferenceBackend for FfiBackend {
             .classifier
             .run_classifier(&signal, debug_enabled)
             .map_err(|e| {
-                EdgeImpulseError::InvalidOperation(format!("Failed to run classifier: {}", e))
+                EdgeImpulseError::InvalidOperation(format!("Failed to run classifier: {e}"))
             })?;
 
         // Extract results based on model type
@@ -224,25 +225,24 @@ impl InferenceBackend for FfiBackend {
         mean: f32,
         regions: &[(f32, u32, u32, u32, u32)],
     ) -> VisualAnomalyResult {
-        // Simple normalization - in a real implementation, this would use
-        // the model's specific normalization logic
-        let normalized_anomaly = (anomaly / max).min(1.0).max(0.0);
-        let normalized_max = 1.0;
-        let normalized_mean = (mean / max).min(1.0).max(0.0);
+        if max <= 0.0 {
+            return (0.0, 0.0, 0.0, Vec::new());
+        }
 
+        // Normalize the overall anomaly score
+        let normalized_anomaly = (anomaly / max).clamp(0.0, 1.0);
+        // Normalize the mean score
+        let normalized_mean = (mean / max).clamp(0.0, 1.0);
+
+        // Normalize each region
         let normalized_regions = regions
             .iter()
-            .map(|&(value, x, y, w, h)| {
-                let normalized_value = (value / max).min(1.0).max(0.0);
-                (normalized_value, x, y, w, h)
+            .map(|(value, x, y, w, h)| {
+                let normalized_value = (value / max).clamp(0.0, 1.0);
+                (normalized_value, *x, *y, *w, *h)
             })
             .collect();
 
-        (
-            normalized_anomaly,
-            normalized_max,
-            normalized_mean,
-            normalized_regions,
-        )
+        (normalized_anomaly, max, normalized_mean, normalized_regions)
     }
 }

@@ -102,38 +102,36 @@
 //! ```
 //!
 //! ### EIM Mode (Legacy - Backward Compatibility)
-//! ```no_run
+//! ```ignore
+//! // This example requires the "eim" feature to be enabled
 //! use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
 //!
-//! fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Create a new model instance with EIM file (legacy mode)
-//!     let mut model = EdgeImpulseModel::new_eim("path/to/model.eim")?;
+//! // Create a new model instance with EIM file (legacy mode)
+//! let mut model = EdgeImpulseModel::new_eim("path/to/model.eim")?;
 //!
-//!     // Prepare normalized features (e.g., image pixels, audio samples)
-//!     let features: Vec<f32> = vec![0.1, 0.2, 0.3];
+//! // Prepare normalized features (e.g., image pixels, audio samples)
+//! let features: Vec<f32> = vec![0.1, 0.2, 0.3];
 //!
-//!     // Run inference
-//!     let result = model.infer(features, None)?;
+//! // Run inference
+//! let result = model.infer(features, None)?;
 //!
-//!     // Process results (same as FFI mode)
-//!     match result.result {
-//!         InferenceResult::Classification { classification } => {
+//! // Process results (same as FFI mode)
+//! match result.result {
+//!     InferenceResult::Classification { classification } => {
+//!         println!("Classification: {:?}", classification);
+//!     }
+//!     InferenceResult::ObjectDetection {
+//!         bounding_boxes,
+//!         classification,
+//!     } => {
+//!         println!("Detected objects: {:?}", bounding_boxes);
+//!         if !classification.is_empty() {
 //!             println!("Classification: {:?}", classification);
 //!         }
-//!         InferenceResult::ObjectDetection {
-//!             bounding_boxes,
-//!             classification,
-//!         } => {
-//!             println!("Detected objects: {:?}", bounding_boxes);
-//!             if !classification.is_empty() {
-//!                 println!("Classification: {:?}", classification);
-//!             }
-//!         }
-//!         InferenceResult::VisualAnomaly { .. } => {
-//!             println!("Anomaly detection result");
-//!         }
 //!     }
-//!     Ok(())
+//!     InferenceResult::VisualAnomaly { .. } => {
+//!         println!("Anomaly detection result");
+//!     }
 //! }
 //! ```
 //!
@@ -190,8 +188,8 @@
 //! ```no_run
 //! use edge_impulse_runner::{EdgeImpulseModel, EdgeImpulseError};
 //!
-//! // Match on model creation
-//! match EdgeImpulseModel::new("model.eim") {
+//! // Match on model creation (EIM mode requires "eim" feature)
+//! match EdgeImpulseModel::new() {
 //!     Ok(mut model) => {
 //!         // Match on classification
 //!         match model.infer(vec![0.1, 0.2, 0.3], None) {

@@ -19,12 +19,18 @@ use std::path::Path;
 /// // FFI mode (default - recommended)
 /// let mut model = EdgeImpulseModel::new()?;
 ///
+/// // Run inference
+/// let result = model.infer(vec![0.1, 0.2, 0.3], None)?;
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+///
+/// ```ignore
 /// // EIM mode (legacy - backward compatibility)
+/// // This example requires the "eim" feature to be enabled
 /// let mut model = EdgeImpulseModel::new_eim("model.eim")?;
 ///
 /// // Run inference
 /// let result = model.infer(vec![0.1, 0.2, 0.3], None)?;
-/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub struct EdgeImpulseModel {
     backend: Box<dyn InferenceBackend>,
