@@ -42,6 +42,85 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio;
 
+// Performance tracking structure
+#[derive(Debug, Clone)]
+struct PerformanceMetrics {
+    frame_count: u64,
+    total_inference_time: Duration,
+    start_time: Instant,
+    last_fps_time: Instant,
+    fps_samples: Vec<f64>,
+    inference_samples: Vec<Duration>,
+}
+
+impl PerformanceMetrics {
+    fn new() -> Self {
+        Self {
+            frame_count: 0,
+            total_inference_time: Duration::ZERO,
+            start_time: Instant::now(),
+            last_fps_time: Instant::now(),
+            fps_samples: Vec::new(),
+            inference_samples: Vec::new(),
+        }
+    }
+
+    fn update(&mut self, inference_time_ms: u32) {
+        self.frame_count += 1;
+        let inference_time = Duration::from_millis(inference_time_ms as u64);
+        self.total_inference_time += inference_time;
+        self.inference_samples.push(inference_time);
+
+        // Keep only last 100 samples for rolling average
+        if self.inference_samples.len() > 100 {
+            self.inference_samples.remove(0);
+        }
+
+        // Calculate FPS every second
+        let now = Instant::now();
+        if now.duration_since(self.last_fps_time) >= Duration::from_secs(1) {
+            let fps = self.frame_count as f64 / now.duration_since(self.start_time).as_secs_f64();
+            self.fps_samples.push(fps);
+
+            // Keep only last 10 FPS samples
+            if self.fps_samples.len() > 10 {
+                self.fps_samples.remove(0);
+            }
+
+            self.last_fps_time = now;
+        }
+    }
+
+    fn print_summary(&self) {
+        let total_time = self.start_time.elapsed();
+        let avg_fps = if !self.fps_samples.is_empty() {
+            self.fps_samples.iter().sum::<f64>() / self.fps_samples.len() as f64
+        } else {
+            0.0
+        };
+
+        let avg_inference_time = if !self.inference_samples.is_empty() {
+            self.inference_samples.iter().sum::<Duration>() / self.inference_samples.len() as u32
+        } else {
+            Duration::ZERO
+        };
+
+        let min_inference_time = self.inference_samples.iter().min().unwrap_or(&Duration::ZERO);
+        let max_inference_time = self.inference_samples.iter().max().unwrap_or(&Duration::ZERO);
+
+        println!("\n📊 PERFORMANCE SUMMARY:");
+        println!("   Total frames processed: {}", self.frame_count);
+        println!("   Total runtime: {:.2}s", total_time.as_secs_f64());
+        println!("   Average FPS: {:.2}", avg_fps);
+        println!("   Average inference time: {:.2}ms", avg_inference_time.as_millis());
+        println!("   Min inference time: {:.2}ms", min_inference_time.as_millis());
+        println!("   Max inference time: {:.2}ms", max_inference_time.as_millis());
+        println!("   Total inference time: {:.2}s", self.total_inference_time.as_secs_f64());
+        println!("   Inference efficiency: {:.1}%",
+            (self.total_inference_time.as_secs_f64() / total_time.as_secs_f64()) * 100.0);
+    }
+}
+
 /// Command line parameters for the video classification example
 #[derive(Parser, Debug)]
 struct VideoInferParams {
@@ -60,6 +139,10 @@ struct VideoInferParams {
     /// Use EIM mode (legacy, not recommended)
     #[clap(long)]
     eim: bool,
+
+    /// Enable performance monitoring
+    #[clap(long)]
+    perf: bool,
 }
 
 // macOS specific run loop handling
@@ -440,6 +523,9 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
     // Parse command line arguments
     let params = VideoInferParams::parse();
 
+    // Initialize performance metrics
+    let perf_metrics = Arc::new(Mutex::new(PerformanceMetrics::new()));
+
     // Initialize Edge Impulse model and get parameters
     let (model, model_params) = initialize_model(
         params.model.as_deref(),
@@ -483,6 +569,7 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
     // Clone Arcs for the closure
     let model = Arc::clone(&model);
     let debug = params.debug;
+    let perf_metrics_clone = Arc::clone(&perf_metrics);
 
     // Add timestamp tracking before the sink callbacks
     let last_no_detection = Arc::new(Mutex::new(Instant::now()));
@@ -516,10 +603,43 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
                     eprintln!("Feature count mismatch: got {} features, expected {}", features.len(), features_count);
                 }
 
-                // Run inference
+                // Run inference with timing
                 if let Ok(mut model) = model.lock() {
+                    let inference_start = Instant::now();
                     match model.infer(features, None) {
                         Ok(response) => {
+                            let inference_time = inference_start.elapsed();
+                            let inference_time_ms = inference_time.as_millis() as u32;
+
+                            // Update performance metrics
+                            if let Ok(mut metrics) = perf_metrics_clone.lock() {
+                                metrics.update(inference_time_ms);
+
+                                // Print real-time performance info if enabled
+                                if params.perf {
+                                    let current_fps = if !metrics.fps_samples.is_empty() {
+                                        metrics.fps_samples.last().unwrap()
+                                    } else {
+                                        &0.0
+                                    };
+                                    let avg_inference = if !metrics.inference_samples.is_empty() {
+                                        metrics.inference_samples.iter()
+                                            .rev()
+                                            .take(10)
+                                            .sum::<Duration>() / metrics.inference_samples.iter().rev().take(10).count() as u32
+                                    } else {
+                                        Duration::ZERO
+                                    };
+
+                                    println!("🎯 Frame #{:3} | FPS: {:4.1} | Inference: {:3}ms | Avg: {:4.1}ms",
+                                        metrics.frame_count,
+                                        current_fps,
+                                        inference_time_ms,
+                                        avg_inference.as_millis()
+                                    );
+                                }
+                            }
+
                             match response.result {
                                 InferenceResult::Classification { classification } => {
                                     if !classification.is_empty() {
@@ -658,6 +778,11 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
     // Cleanup
     pipeline.set_state(gst::State::Null)?;
     println!("Pipeline stopped");
+
+    // Print performance summary
+    if let Ok(metrics) = perf_metrics.lock() {
+        metrics.print_summary();
+    }
 
     Ok(())
 }
