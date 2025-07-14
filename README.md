@@ -51,6 +51,18 @@ This Rust library provides two modes for running Edge Impulse models:
 ## Quick Start
 
 ### FFI Mode (Default & Recommended)
+
+#### Option 1: Copy Model from Custom Path
+You can copy your Edge Impulse model from a custom directory path using the `EI_MODEL` environment variable:
+
+```sh
+export EI_MODEL=/path/to/your/edge-impulse-model
+cargo build
+```
+
+This will automatically copy the model files and build the C++ SDK bindings.
+
+#### Option 2: Download from Edge Impulse Studio
 Set your Edge Impulse project credentials and build:
 
 ```sh
@@ -63,6 +75,19 @@ cargo build
 This will automatically download your model from Edge Impulse and build the C++ SDK bindings.
 
 **Note:** The download process may take several minutes on the first build. Never commit your API key to version control.
+
+#### Model Source Priority
+
+The build system checks for models in the following order:
+
+1. **Custom model path** specified by `EI_MODEL` environment variable
+2. **Edge Impulse API download** using `EI_PROJECT_ID` and `EI_API_KEY`
+
+This means you can:
+- Copy from a custom path (useful for Docker builds, CI/CD)
+- Download from Edge Impulse Studio (requires API credentials)
+
+**Note**: Since `edge-impulse-ffi-rs` is managed as a Cargo dependency, you cannot easily manually copy files into its `model/` directory. Use environment variables instead.
 
 ### EIM Mode (Legacy/Compatibility)
 > **Not recommended except for legacy/dev use.**
@@ -108,7 +133,12 @@ Add this to your `Cargo.toml`:
 edge-impulse-runner = "2.0.0"
 ```
 
-FFI mode is enabled by default. Set the `EI_PROJECT_ID` and `EI_API_KEY` environment variables.
+FFI mode is enabled by default. You can provide model files in several ways:
+
+1. **Copy from custom path**: Set `EI_MODEL=/path/to/your/model`
+2. **Download from Edge Impulse Studio**: Set `EI_PROJECT_ID` and `EI_API_KEY` environment variables
+
+**Note**: Since `edge-impulse-ffi-rs` is managed as a Cargo dependency, you cannot easily manually copy files into its `model/` directory. Use environment variables instead.
 
 ---
 
@@ -275,13 +305,49 @@ Full TensorFlow Lite uses prebuilt binaries from the `tflite/` directory:
 
 **Note:** If no platform is specified, the build system will auto-detect based on your current system architecture.
 
-### Model Updates
-
-If you want to switch between models or make sure you always get the latest version of your model, you have to set the `CLEAN_MODEL=1` environment variable:
+### EI_MODEL Usage Examples
 
 ```sh
-CLEAN_MODEL=1 cargo build
+# Copy model from a mounted volume in Docker
+EI_MODEL=/mnt/models/my-project cargo build
+
+# Copy model from a relative path
+EI_MODEL=../shared-models/project-123 cargo build
+
+# Copy model and use full TensorFlow Lite
+EI_MODEL=/opt/models/my-project USE_FULL_TFLITE=1 cargo build
+
+# Copy model with platform-specific flags
+EI_MODEL=/path/to/model TARGET_MAC_ARM64=1 USE_FULL_TFLITE=1 cargo build
 ```
+
+### Model Updates and Cleaning
+
+#### Switching Models
+If you want to switch between models or make sure you always get the latest version of your model, you need to clean the `edge-impulse-ffi-rs` dependency:
+
+```sh
+# Clean the edge-impulse-ffi-rs dependency completely (including model files)
+cargo clean -p edge-impulse-ffi-rs
+
+# Then rebuild with your new model source
+EI_MODEL=/path/to/new/model cargo build
+# or
+EI_PROJECT_ID=12345 EI_API_KEY=your-api-key cargo build
+```
+
+#### Starting from Scratch
+To completely start over and remove all cached model files:
+
+```sh
+# Clean everything
+cargo clean
+
+# Rebuild with your desired model source
+EI_MODEL=/path/to/model cargo build
+```
+
+**Note**: The `CLEAN_MODEL=1` environment variable only works when building `edge-impulse-ffi-rs` directly. When using it as a dependency through `edge-impulse-runner-rs`, use `cargo clean -p edge-impulse-ffi-rs` instead.
 
 ---
 
