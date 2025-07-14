@@ -259,24 +259,18 @@ impl InferenceBackend for FfiBackend {
         mean: f32,
         regions: &[(f32, u32, u32, u32, u32)],
     ) -> VisualAnomalyResult {
-        if max <= 0.0 {
-            return (0.0, 0.0, 0.0, Vec::new());
-        }
+        // Output raw values without normalization, matching Edge Impulse Linux runner behavior
+        // Normalization should be done in the UI/overlay layer for visualization
+        let raw_anomaly = anomaly;
+        let raw_max = max;
+        let raw_mean = mean;
 
-        // Normalize the overall anomaly score
-        let normalized_anomaly = (anomaly / max).clamp(0.0, 1.0);
-        // Normalize the mean score
-        let normalized_mean = (mean / max).clamp(0.0, 1.0);
-
-        // Normalize each region
-        let normalized_regions = regions
+        // Keep raw region values
+        let raw_regions = regions
             .iter()
-            .map(|(value, x, y, w, h)| {
-                let normalized_value = (value / max).clamp(0.0, 1.0);
-                (normalized_value, *x, *y, *w, *h)
-            })
+            .map(|(value, x, y, w, h)| (*value, *x, *y, *w, *h))
             .collect();
 
-        (normalized_anomaly, max, normalized_mean, normalized_regions)
+        (raw_anomaly, raw_max, raw_mean, raw_regions)
     }
 }
