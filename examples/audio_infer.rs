@@ -20,7 +20,6 @@ use clap::Parser;
 use edge_impulse_runner::EdgeImpulseModel;
 #[cfg(feature = "ffi")]
 use edge_impulse_runner::ffi::ModelMetadata;
-use hound;
 use std::path::PathBuf;
 
 /// Command line parameters for the audio classification example
@@ -169,7 +168,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Run inference
     let result = model.infer(samples, Some(params.debug))?;
-    println!("Classification result: {:?}", result);
+    println!("Classification result: {result:?}");
 
     Ok(())
 }

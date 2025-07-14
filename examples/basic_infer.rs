@@ -170,15 +170,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Handle the result
     match result {
         InferenceResult::Classification { classification } => {
-            println!("Classification: {:?}", classification);
+            println!("Classification: {classification:?}");
         }
         InferenceResult::ObjectDetection {
             bounding_boxes,
             classification,
         } => {
-            println!("Detected objects: {:?}", bounding_boxes);
+            println!("Detected objects: {bounding_boxes:?}");
             if !classification.is_empty() {
-                println!("Classification: {:?}", classification);
+                println!("Classification: {classification:?}");
             }
         }
         InferenceResult::VisualAnomaly {
@@ -189,9 +189,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         } => {
             // Print raw values for debugging
             println!("\nRaw anomaly values:");
-            println!("  Overall: {:.2}", anomaly);
-            println!("  Maximum: {:.2}", visual_anomaly_max);
-            println!("  Mean: {:.2}", visual_anomaly_mean);
+            println!("  Overall: {anomaly:.2}");
+            println!("  Maximum: {visual_anomaly_max:.2}");
+            println!("  Mean: {visual_anomaly_mean:.2}");
 
             // Debug output for the grid
             if args.debug {
@@ -216,7 +216,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _ => None,
                 })
                 .unwrap_or(&6.0);
-            println!("  min_anomaly_score: {}", min_anomaly_score);
+            println!("  min_anomaly_score: {min_anomaly_score}");
 
             // Normalize all scores using the model's normalization method
             let (normalized_anomaly, normalized_max, normalized_mean, normalized_regions) = model
@@ -264,8 +264,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("  2. The visual_anomaly_grid is empty");
                     println!("  3. The normalization process filtered out all regions");
                     println!(
-                        "  4. The min_anomaly_score threshold ({}) is too high",
-                        min_anomaly_score
+                        "  4. The min_anomaly_score threshold ({min_anomaly_score}) is too high"
                     );
                 }
             }

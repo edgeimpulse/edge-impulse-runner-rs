@@ -156,10 +156,9 @@ impl InferenceBackend for FfiBackend {
         // Extract results based on model type
         let inference_result = if self.parameters.has_anomaly == RunnerHelloHasAnomaly::GMM {
             // Visual anomaly detection model
-            if let Some((anomaly_score, max_value, mean_value, grid_cells)) =
-                result.visual_anomaly()
-            {
-                let visual_anomaly_grid = grid_cells
+            if let Some(visual_anomaly_result) = result.visual_anomaly() {
+                let visual_anomaly_grid = visual_anomaly_result
+                    .grid_cells
                     .into_iter()
                     .map(|bb| BoundingBox {
                         label: bb.label,
@@ -173,9 +172,9 @@ impl InferenceBackend for FfiBackend {
 
                 crate::inference::messages::InferenceResult::VisualAnomaly {
                     visual_anomaly_grid,
-                    visual_anomaly_max: max_value,
-                    visual_anomaly_mean: mean_value,
-                    anomaly: anomaly_score,
+                    visual_anomaly_max: visual_anomaly_result.max_value,
+                    visual_anomaly_mean: visual_anomaly_result.mean_value,
+                    anomaly: 0.0, // Visual anomaly detection doesn't use the regular anomaly score
                 }
             } else {
                 // Fallback to classification if visual anomaly detection data is not available

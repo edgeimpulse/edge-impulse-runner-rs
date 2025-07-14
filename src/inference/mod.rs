@@ -62,7 +62,7 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'cat {}'"#,
         );
         match result {
             Err(EdgeImpulseError::ExecutionError(msg)) if msg.contains("No such file") => (),
-            other => panic!("Expected ExecutionError for missing file, got {:?}", other),
+            other => panic!("Expected ExecutionError for missing file, got {other:?}"),
         }
     }
 
@@ -117,12 +117,12 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'cat {}'"#,
         // Clean up the test files
         if mock_path_with_eim.exists() {
             std::fs::remove_file(&mock_path_with_eim).unwrap_or_else(|e| {
-                println!("Warning: Failed to remove mock EIM file: {}", e);
+                println!("Warning: Failed to remove mock EIM file: {e}");
             });
         }
         if response_path.exists() {
             std::fs::remove_file(&response_path).unwrap_or_else(|e| {
-                println!("Warning: Failed to remove response file: {}", e);
+                println!("Warning: Failed to remove response file: {e}");
             });
         }
     }
@@ -153,8 +153,7 @@ socat UNIX-LISTEN:$SOCKET_PATH,fork SYSTEM:'cat {}'"#,
             matches!(result,
                 Err(EdgeImpulseError::SocketError(ref msg)) if msg.contains("Timeout waiting for socket")
             ),
-            "Expected timeout error, got {:?}",
-            result
+            "Expected timeout error, got {result:?}"
         );
     }
 }

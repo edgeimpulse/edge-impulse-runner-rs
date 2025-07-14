@@ -513,7 +513,7 @@ mod tests {
                 device_id: "test_device",
                 device_type: "CUSTOM_DEVICE",
                 sensors,
-                values: values,
+                values,
                 interval_ms: 100.0,
                 label: None,
                 category: "training",
