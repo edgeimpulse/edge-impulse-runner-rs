@@ -80,6 +80,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .upload_file(&args.file, category, args.label, Some(options))
         .await?;
 
-    println!("Upload successful! Response: {}", result);
+    println!("Upload successful! Response: {result}");
     Ok(())
 }

@@ -40,7 +40,6 @@ use gstreamer_video::{self, VideoCapsBuilder, VideoInfo};
 use std::error::Error;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tokio;
 
 // Performance tracking structure
 #[derive(Debug, Clone)]
@@ -119,7 +118,7 @@ impl PerformanceMetrics {
         println!("\n📊 PERFORMANCE SUMMARY:");
         println!("   Total frames processed: {}", self.frame_count);
         println!("   Total runtime: {:.2}s", total_time.as_secs_f64());
-        println!("   Average FPS: {:.2}", avg_fps);
+        println!("   Average FPS: {avg_fps:.2}");
         println!(
             "   Average inference time: {:.2}ms",
             avg_inference_time.as_millis()
@@ -303,7 +302,7 @@ fn create_pipeline(
         .build()?;
 
     // Add elements to pipeline
-    pipeline.add_many(&[
+    pipeline.add_many([
         &src,
         &convert,
         &scale,
@@ -317,14 +316,14 @@ fn create_pipeline(
     ])?;
 
     // Link elements
-    gst::Element::link_many(&[&src, &convert, &scale, &tee])?;
-    gst::Element::link_many(&[
+    gst::Element::link_many([&src, &convert, &scale, &tee])?;
+    gst::Element::link_many([
         &queue_preview,
         &scale_preview,
         &preview_caps,
         &autovideosink,
     ])?;
-    gst::Element::link_many(&[&queue_analysis, &appsink])?;
+    gst::Element::link_many([&queue_analysis, &appsink])?;
 
     // Link tee to queues
     let tee_src_pad_template = tee.pad_template("src_%u").unwrap();
@@ -536,8 +535,7 @@ async fn initialize_model(
     // Set thresholds if provided (not supported in current backend abstraction)
     if let Some(thresholds_str) = thresholds {
         println!(
-            "Threshold setting not supported in current backend abstraction: {}",
-            thresholds_str
+            "Threshold setting not supported in current backend abstraction: {thresholds_str}"
         );
     }
 
@@ -547,7 +545,7 @@ async fn initialize_model(
     // Print detailed model parameters
     println!("\nModel Parameters:");
     println!("----------------");
-    println!("{:#?}", model_params);
+    println!("{model_params:#?}");
     println!("----------------\n");
 
     // Wrap the model in Arc<Mutex>
@@ -582,15 +580,11 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
     let features_count = model_params.input_features_count;
 
     println!(
-        "Model expects {}x{} input with {} channels ({} features)",
-        input_width, input_height, channel_count, features_count
+        "Model expects {input_width}x{input_height} input with {channel_count} channels ({features_count} features)"
     );
 
     // Add the image format details here
-    println!(
-        "Image format will be {}x{} with {} channels",
-        input_width, input_height, channel_count
-    );
+    println!("Image format will be {input_width}x{input_height} with {channel_count} channels");
 
     // Create pipeline with the extracted parameters
     let pipeline = create_pipeline(&edge_impulse_runner::ModelParameters {
@@ -621,9 +615,9 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
         gst_app::AppSinkCallbacks::builder()
             .new_sample(move |appsink| {
                 let sample = appsink.pull_sample().map_err(|_| gst::FlowError::Eos)?;
-                let buffer = sample.buffer().ok_or_else(|| gst::FlowError::Error)?;
+                let buffer = sample.buffer().ok_or(gst::FlowError::Error)?;
 
-                let caps = sample.caps().ok_or_else(|| gst::FlowError::Error)?;
+                let caps = sample.caps().ok_or(gst::FlowError::Error)?;
                 let info = VideoInfo::from_caps(caps).map_err(|_| gst::FlowError::Error)?;
 
                 let features = process_sample(
@@ -684,7 +678,7 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
                             match response.result {
                                 InferenceResult::Classification { classification } => {
                                     if !classification.is_empty() {
-                                        println!("Classification: {:?}", classification);
+                                        println!("Classification: {classification:?}");
                                     }
                                 }
                                 InferenceResult::ObjectDetection {
@@ -692,22 +686,21 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
                                     classification,
                                 } => {
                                     if !bounding_boxes.is_empty() {
-                                        println!("Detected objects: {:?}", bounding_boxes);
+                                        println!("Detected objects: {bounding_boxes:?}");
                                         if let Ok(mut last) = last_no_detection_clone.lock() {
                                             *last = Instant::now();
                                         }
                                     } else {
                                         // Check if 5 seconds have passed since last notification
-                                        if let Ok(mut last) = last_no_detection_clone.lock() {
-                                            if last.elapsed() >= Duration::from_secs(5) {
+                                        if let Ok(mut last) = last_no_detection_clone.lock()
+                                            && last.elapsed() >= Duration::from_secs(5) {
                                                 println!("No objects detected");
                                                 *last = Instant::now();
                                             }
-                                        }
                                     }
 
                                     if !classification.is_empty() {
-                                        println!("Classification: {:?}", classification);
+                                        println!("Classification: {classification:?}");
                                     }
                                 }
                                 InferenceResult::VisualAnomaly {
@@ -718,9 +711,9 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
                                 } => {
                                     // Print raw values for debugging
                                     println!("\nRaw anomaly values:");
-                                    println!("  Overall: {:.2}", anomaly);
-                                    println!("  Maximum: {:.2}", visual_anomaly_max);
-                                    println!("  Mean: {:.2}", visual_anomaly_mean);
+                                    println!("  Overall: {anomaly:.2}");
+                                    println!("  Maximum: {visual_anomaly_max:.2}");
+                                    println!("  Mean: {visual_anomaly_mean:.2}");
 
                                     // Debug output for the grid
                                     if debug {
@@ -739,7 +732,7 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
                                             _ => None,
                                         })
                                         .unwrap_or(6.0);
-                                    println!("  min_anomaly_score: {}", min_anomaly_score);
+                                    println!("  min_anomaly_score: {min_anomaly_score}");
 
                                     // Normalize all scores using the model's normalization method
                                     let (normalized_anomaly, normalized_max, normalized_mean, normalized_regions) =
@@ -777,14 +770,14 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
                                             println!("  1. The model didn't detect any anomalies above the threshold");
                                             println!("  2. The visual_anomaly_grid is empty");
                                             println!("  3. The normalization process filtered out all regions");
-                                            println!("  4. The min_anomaly_score threshold ({}) is too high", min_anomaly_score);
+                                            println!("  4. The min_anomaly_score threshold ({min_anomaly_score}) is too high");
                                         }
                                     }
                                 }
                             }
                         }
                         Err(e) => {
-                            eprintln!("Inference error: {}", e);
+                            eprintln!("Inference error: {e}");
                         }
                     }
                 }

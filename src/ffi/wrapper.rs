@@ -293,7 +293,10 @@ impl InferenceResult {
                 let result = &*self.result;
                 if result.bounding_boxes_count == 0 || result.bounding_boxes.is_null() {
                     if result.bounding_boxes_count > 0 {
-                        eprintln!("[EdgeImpulse FFI] Warning: bounding_boxes pointer is null but count is {}", result.bounding_boxes_count);
+                        eprintln!(
+                            "[EdgeImpulse FFI] Warning: bounding_boxes pointer is null but count is {}",
+                            result.bounding_boxes_count
+                        );
                     }
                     return vec![];
                 }
@@ -312,7 +315,9 @@ impl InferenceResult {
                                 .to_string_lossy()
                                 .into_owned()
                         } else {
-                            eprintln!("[EdgeImpulse FFI] Warning: bounding box label pointer is null");
+                            eprintln!(
+                                "[EdgeImpulse FFI] Warning: bounding box label pointer is null"
+                            );
                             String::new()
                         };
                         Some(BoundingBox {
@@ -357,7 +362,10 @@ impl InferenceResult {
 
                 // Get the grid cells
                 let grid_cells = if result.visual_ad_grid_cells.is_null() {
-                    eprintln!("[EdgeImpulse FFI] Warning: visual_ad_grid_cells pointer is null but count is {}", result.visual_ad_count);
+                    eprintln!(
+                        "[EdgeImpulse FFI] Warning: visual_ad_grid_cells pointer is null but count is {}",
+                        result.visual_ad_count
+                    );
                     vec![]
                 } else {
                     let cells = std::slice::from_raw_parts(
@@ -680,7 +688,9 @@ impl fmt::Display for VisualAnomalyResult {
         write!(
             f,
             "Visual Anomaly: mean={:.4}, max={:.4}, grid_cells={}",
-            self.mean_value, self.max_value, self.grid_cells.len()
+            self.mean_value,
+            self.max_value,
+            self.grid_cells.len()
         )
     }
 }
