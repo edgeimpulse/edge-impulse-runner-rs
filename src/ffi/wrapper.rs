@@ -334,20 +334,67 @@ impl InferenceResult {
         }
     }
 
-            /// Get visual anomaly detection results
+    /// Get visual anomaly detection results
     ///
-    /// This method is always available at the wrapper level. If the model and bindings do not support
-    /// visual anomaly detection, this will return None at runtime.
-    ///
-    /// NOTE: This currently returns None for all models because the visual anomaly detection fields
-    /// are not consistently available in the bindings across different model types. This needs to be
-    /// fixed in the edge-impulse-ffi-rs crate to ensure the fields are always present in the bindings.
-    pub fn visual_anomaly(&self) -> Option<(f32, f32, f32, Vec<BoundingBox>)> {
+    /// Returns visual anomaly detection results if available. The visual anomaly detection
+    /// fields are now always present in the bindings, so this method will return Some
+    /// if the model supports visual anomaly detection and has results.
+    pub fn visual_anomaly(&self) -> Option<VisualAnomalyResult> {
         #[cfg(feature = "ffi")]
         {
-            // TODO: Fix this when edge-impulse-ffi-rs ensures visual anomaly fields are always present
-            // For now, return None as the fields may not be available in all model types
-            None
+            unsafe {
+                let result = &*self.result;
+
+                // Check if visual anomaly detection is available and has results
+                if result.visual_ad_count == 0 {
+                    return None;
+                }
+
+                // Get the visual anomaly result values
+                let visual_ad_result = &result.visual_ad_result;
+                let mean_value = visual_ad_result.mean_value;
+                let max_value = visual_ad_result.max_value;
+
+                // Get the grid cells
+                let grid_cells = if result.visual_ad_grid_cells.is_null() {
+                    eprintln!("[EdgeImpulse FFI] Warning: visual_ad_grid_cells pointer is null but count is {}", result.visual_ad_count);
+                    vec![]
+                } else {
+                    let cells = std::slice::from_raw_parts(
+                        result.visual_ad_grid_cells,
+                        result.visual_ad_count as usize,
+                    );
+                    cells.iter()
+                        .filter_map(|cell| {
+                            if cell.value == 0.0 {
+                                return None;
+                            }
+                            let label = if !cell.label.is_null() {
+                                std::ffi::CStr::from_ptr(cell.label)
+                                    .to_string_lossy()
+                                    .into_owned()
+                            } else {
+                                eprintln!("[EdgeImpulse FFI] Warning: visual anomaly grid cell label pointer is null");
+                                String::new()
+                            };
+                            Some(BoundingBox {
+                                label,
+                                value: cell.value,
+                                x: cell.x,
+                                y: cell.y,
+                                width: cell.width,
+                                height: cell.height,
+                            })
+                        })
+                        .collect()
+                };
+
+                Some(VisualAnomalyResult {
+                    mean_value,
+                    max_value,
+                    grid_cells,
+                })
+            }
         }
         #[cfg(not(feature = "ffi"))]
         {
@@ -618,6 +665,24 @@ pub struct TimingResult {
     pub dsp: i32,
     pub classification: i32,
     pub anomaly: i32,
+}
+
+/// Visual anomaly detection result
+#[derive(Debug, Clone)]
+pub struct VisualAnomalyResult {
+    pub mean_value: f32,
+    pub max_value: f32,
+    pub grid_cells: Vec<BoundingBox>,
+}
+
+impl fmt::Display for VisualAnomalyResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Visual Anomaly: mean={:.4}, max={:.4}, grid_cells={}",
+            self.mean_value, self.max_value, self.grid_cells.len()
+        )
+    }
 }
 
 impl fmt::Display for ModelMetadataInfo {
