@@ -334,54 +334,20 @@ impl InferenceResult {
         }
     }
 
-    /// Get visual anomaly detection results
+            /// Get visual anomaly detection results
     ///
     /// This method is always available at the wrapper level. If the model and bindings do not support
     /// visual anomaly detection, this will return None at runtime.
+    ///
+    /// NOTE: This currently returns None for all models because the visual anomaly detection fields
+    /// are not consistently available in the bindings across different model types. This needs to be
+    /// fixed in the edge-impulse-ffi-rs crate to ensure the fields are always present in the bindings.
     pub fn visual_anomaly(&self) -> Option<(f32, f32, f32, Vec<BoundingBox>)> {
         #[cfg(feature = "ffi")]
         {
-            unsafe {
-                let result = &*self.result;
-                if result.visual_ad_count == 0 {
-                    eprintln!("[EdgeImpulse FFI] No visual anomaly grid cells (visual_ad_count == 0)");
-                    return None;
-                }
-                if result.visual_ad_grid_cells.is_null() {
-                    eprintln!("[EdgeImpulse FFI] visual_ad_grid_cells pointer is null");
-                    return None;
-                }
-                let grid_cells = std::slice::from_raw_parts(
-                    result.visual_ad_grid_cells,
-                    result.visual_ad_count as usize,
-                );
-                let visual_ad_boxes = grid_cells
-                    .iter()
-                    .map(|bb| {
-                        let label = if !bb.label.is_null() {
-                            std::ffi::CStr::from_ptr(bb.label)
-                                .to_string_lossy()
-                                .into_owned()
-                        } else {
-                            eprintln!("[EdgeImpulse FFI] Warning: visual anomaly grid cell label pointer is null");
-                            String::from("")
-                        };
-                        BoundingBox {
-                            label,
-                            value: bb.value,
-                            x: bb.x,
-                            y: bb.y,
-                            width: bb.width,
-                            height: bb.height,
-                        }
-                    })
-                    .collect();
-                let ad = &result.visual_ad_result;
-                // The visual anomaly result only has mean_value and max_value
-                // We use mean_value as the overall anomaly score
-                // For threshold and stddev, we use reasonable defaults since they're not available
-                Some((ad.mean_value, ad.max_value, 0.0, visual_ad_boxes))
-            }
+            // TODO: Fix this when edge-impulse-ffi-rs ensures visual anomaly fields are always present
+            // For now, return None as the fields may not be available in all model types
+            None
         }
         #[cfg(not(feature = "ffi"))]
         {
