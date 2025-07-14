@@ -154,7 +154,42 @@ impl InferenceBackend for FfiBackend {
             })?;
 
         // Extract results based on model type
-        let inference_result = if self.parameters.model_type == "object-detection" {
+        let inference_result = if self.parameters.has_anomaly == RunnerHelloHasAnomaly::GMM {
+            // Visual anomaly detection model
+            if let Some((anomaly_score, max_value, mean_value, grid_cells)) =
+                result.visual_anomaly()
+            {
+                let visual_anomaly_grid = grid_cells
+                    .into_iter()
+                    .map(|bb| BoundingBox {
+                        label: bb.label,
+                        value: bb.value,
+                        x: bb.x as i32,
+                        y: bb.y as i32,
+                        width: bb.width as i32,
+                        height: bb.height as i32,
+                    })
+                    .collect();
+
+                crate::inference::messages::InferenceResult::VisualAnomaly {
+                    visual_anomaly_grid,
+                    visual_anomaly_max: max_value,
+                    visual_anomaly_mean: mean_value,
+                    anomaly: anomaly_score,
+                }
+            } else {
+                // Fallback to classification if visual anomaly detection data is not available
+                let classifications = result
+                    .classifications(self.parameters.label_count as usize)
+                    .into_iter()
+                    .map(|c| (c.label, c.value))
+                    .collect();
+
+                crate::inference::messages::InferenceResult::Classification {
+                    classification: classifications,
+                }
+            }
+        } else if self.parameters.model_type == "object-detection" {
             // Object detection model
             let bounding_boxes = result
                 .bounding_boxes()

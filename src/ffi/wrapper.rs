@@ -328,6 +328,60 @@ impl InferenceResult {
         }
     }
 
+    /// Get visual anomaly detection results
+    pub fn visual_anomaly(&self) -> Option<(f32, f32, f32, Vec<BoundingBox>)> {
+        #[cfg(feature = "ffi")]
+        {
+            unsafe {
+                let result = &*self.result;
+
+                // Check if visual anomaly detection is available
+                if result.visual_ad_count == 0 || result.visual_ad_grid_cells.is_null() {
+                    return None;
+                }
+
+                let grid_cells = std::slice::from_raw_parts(
+                    result.visual_ad_grid_cells,
+                    result.visual_ad_count as usize,
+                );
+
+                let visual_ad_boxes = grid_cells
+                    .iter()
+                    .map(|bb| {
+                        let label = if !bb.label.is_null() {
+                            std::ffi::CStr::from_ptr(bb.label)
+                                .to_string_lossy()
+                                .into_owned()
+                        } else {
+                            "anomaly".to_string()
+                        };
+
+                        BoundingBox {
+                            label,
+                            value: bb.value,
+                            x: bb.x,
+                            y: bb.y,
+                            width: bb.width,
+                            height: bb.height,
+                        }
+                    })
+                    .collect();
+
+                Some((
+                    result.anomaly,                     // Overall anomaly score
+                    result.visual_ad_result.max_value,  // Max value
+                    result.visual_ad_result.mean_value, // Mean value
+                    visual_ad_boxes,                    // Grid cells
+                ))
+            }
+        }
+
+        #[cfg(not(feature = "ffi"))]
+        {
+            None
+        }
+    }
+
     /// Get timing information
     pub fn timing(&self) -> TimingResult {
         #[cfg(feature = "ffi")]
