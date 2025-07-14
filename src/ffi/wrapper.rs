@@ -267,6 +267,7 @@ impl InferenceResult {
                                 .to_string_lossy()
                                 .into_owned()
                         } else {
+                            eprintln!("[EdgeImpulse FFI] Warning: classification label pointer is null at index {i}");
                             String::new()
                         };
                         ClassificationResult {
@@ -291,6 +292,9 @@ impl InferenceResult {
             unsafe {
                 let result = &*self.result;
                 if result.bounding_boxes_count == 0 || result.bounding_boxes.is_null() {
+                    if result.bounding_boxes_count > 0 {
+                        eprintln!("[EdgeImpulse FFI] Warning: bounding_boxes pointer is null but count is {}", result.bounding_boxes_count);
+                    }
                     return vec![];
                 }
                 let bbs = std::slice::from_raw_parts(
@@ -300,6 +304,7 @@ impl InferenceResult {
                 bbs.iter()
                     .filter_map(|bb| {
                         if bb.value == 0.0 {
+                            eprintln!("[EdgeImpulse FFI] Skipping bounding box with value 0.0");
                             return None;
                         }
                         let label = if !bb.label.is_null() {
@@ -307,6 +312,7 @@ impl InferenceResult {
                                 .to_string_lossy()
                                 .into_owned()
                         } else {
+                            eprintln!("[EdgeImpulse FFI] Warning: bounding box label pointer is null");
                             String::new()
                         };
                         Some(BoundingBox {
@@ -329,14 +335,54 @@ impl InferenceResult {
     }
 
     /// Get visual anomaly detection results
+    ///
+    /// This method is always available at the wrapper level. If the model and bindings do not support
+    /// visual anomaly detection, this will return None at runtime.
     pub fn visual_anomaly(&self) -> Option<(f32, f32, f32, Vec<BoundingBox>)> {
         #[cfg(feature = "ffi")]
         {
-            // For now, return None as visual anomaly detection fields may not be available
-            // in all model types. This will be fixed when the bindings are updated.
-            None
+            unsafe {
+                let result = &*self.result;
+                if result.visual_ad_count == 0 {
+                    eprintln!("[EdgeImpulse FFI] No visual anomaly grid cells (visual_ad_count == 0)");
+                    return None;
+                }
+                if result.visual_ad_grid_cells.is_null() {
+                    eprintln!("[EdgeImpulse FFI] visual_ad_grid_cells pointer is null");
+                    return None;
+                }
+                let grid_cells = std::slice::from_raw_parts(
+                    result.visual_ad_grid_cells,
+                    result.visual_ad_count as usize,
+                );
+                let visual_ad_boxes = grid_cells
+                    .iter()
+                    .map(|bb| {
+                        let label = if !bb.label.is_null() {
+                            std::ffi::CStr::from_ptr(bb.label)
+                                .to_string_lossy()
+                                .into_owned()
+                        } else {
+                            eprintln!("[EdgeImpulse FFI] Warning: visual anomaly grid cell label pointer is null");
+                            String::from("")
+                        };
+                        BoundingBox {
+                            label,
+                            value: bb.value,
+                            x: bb.x,
+                            y: bb.y,
+                            width: bb.width,
+                            height: bb.height,
+                        }
+                    })
+                    .collect();
+                let ad = &result.visual_ad_result;
+                // The visual anomaly result only has mean_value and max_value
+                // We use mean_value as the overall anomaly score
+                // For threshold and stddev, we use reasonable defaults since they're not available
+                Some((ad.mean_value, ad.max_value, 0.0, visual_ad_boxes))
+            }
         }
-
         #[cfg(not(feature = "ffi"))]
         {
             None
