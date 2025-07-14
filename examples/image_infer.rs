@@ -352,11 +352,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 for (value, x, y, w, h) in normalized_regions {
                     println!(
                         "  Region (raw: {:.2}): x={}, y={}, width={}, height={}",
-                        value,
-                        x,
-                        y,
-                        w,
-                        h
+                        value, x, y, w, h
                     );
                 }
             } else {

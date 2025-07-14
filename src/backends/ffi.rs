@@ -268,9 +268,7 @@ impl InferenceBackend for FfiBackend {
         // Keep raw region values
         let raw_regions = regions
             .iter()
-            .map(|(value, x, y, w, h)| {
-                (*value, *x, *y, *w, *h)
-            })
+            .map(|(value, x, y, w, h)| (*value, *x, *y, *w, *h))
             .collect();
 
         (raw_anomaly, raw_max, raw_mean, raw_regions)
