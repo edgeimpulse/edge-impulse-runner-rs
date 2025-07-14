@@ -341,18 +341,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .collect::<Vec<_>>(),
                 );
 
-            println!("\nNormalized scores:");
-            println!("  Overall score: {:.2}%", normalized_anomaly * 100.0);
-            println!("  Maximum score: {:.2}%", normalized_max * 100.0);
-            println!("  Mean score: {:.2}%", normalized_mean * 100.0);
+            println!("\nRaw scores:");
+            println!("  Overall score: {:.2}", normalized_anomaly);
+            println!("  Maximum score: {:.2}", normalized_max);
+            println!("  Mean score: {:.2}", normalized_mean);
 
             // Show all detected regions (if any exist)
             if !normalized_regions.is_empty() {
                 println!("\nDetected regions:");
                 for (value, x, y, w, h) in normalized_regions {
                     println!(
-                        "  Region (normalized: {:.2}%): x={}, y={}, width={}, height={}",
-                        value * 100.0,
+                        "  Region (raw: {:.2}): x={}, y={}, width={}, height={}",
+                        value,
                         x,
                         y,
                         w,
@@ -365,7 +365,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("  Note: This could be because:");
                     println!("  1. The model didn't detect any anomalies above the threshold");
                     println!("  2. The visual_anomaly_grid is empty");
-                    println!("  3. The normalization process filtered out all regions");
+                    println!("  3. All region values are zero or below threshold");
                     println!(
                         "  4. The min_anomaly_score threshold ({min_anomaly_score}) is too high"
                     );
