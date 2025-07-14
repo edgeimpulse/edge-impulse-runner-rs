@@ -21,20 +21,27 @@ fn main() {
         let model_parameters_dir = ffi_dep_path.join("model/model-parameters");
         let tflite_model_dir = ffi_dep_path.join("model/tflite-model");
 
-        let has_valid_model = sdk_dir.exists() && model_parameters_dir.exists() && tflite_model_dir.exists();
+        let has_valid_model =
+            sdk_dir.exists() && model_parameters_dir.exists() && tflite_model_dir.exists();
 
         if has_valid_model {
             println!("cargo:info=Found valid model files in edge-impulse-ffi-rs dependency");
             println!("cargo:info=No environment variables required for FFI mode");
         } else {
-            println!("cargo:info=No valid model files found, checking for environment variables...");
+            println!(
+                "cargo:info=No valid model files found, checking for environment variables..."
+            );
 
             // Check for EI_MODEL environment variable first
             if let Ok(model_path) = env::var("EI_MODEL") {
-                println!("cargo:info=Found EI_MODEL environment variable: {}", model_path);
-                println!("cargo:info=The edge-impulse-ffi-rs dependency will handle copying from this path");
+                println!("cargo:info=Found EI_MODEL environment variable: {model_path}");
+                println!(
+                    "cargo:info=The edge-impulse-ffi-rs dependency will handle copying from this path"
+                );
             } else {
-                println!("cargo:info=No EI_MODEL environment variable found, checking for API credentials...");
+                println!(
+                    "cargo:info=No EI_MODEL environment variable found, checking for API credentials..."
+                );
 
                 // Check for required environment variables
                 let project_id = env::var("EI_PROJECT_ID");

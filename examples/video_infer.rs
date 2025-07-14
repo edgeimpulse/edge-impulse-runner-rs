@@ -105,19 +105,41 @@ impl PerformanceMetrics {
             Duration::ZERO
         };
 
-        let min_inference_time = self.inference_samples.iter().min().unwrap_or(&Duration::ZERO);
-        let max_inference_time = self.inference_samples.iter().max().unwrap_or(&Duration::ZERO);
+        let min_inference_time = self
+            .inference_samples
+            .iter()
+            .min()
+            .unwrap_or(&Duration::ZERO);
+        let max_inference_time = self
+            .inference_samples
+            .iter()
+            .max()
+            .unwrap_or(&Duration::ZERO);
 
         println!("\n📊 PERFORMANCE SUMMARY:");
         println!("   Total frames processed: {}", self.frame_count);
         println!("   Total runtime: {:.2}s", total_time.as_secs_f64());
         println!("   Average FPS: {:.2}", avg_fps);
-        println!("   Average inference time: {:.2}ms", avg_inference_time.as_millis());
-        println!("   Min inference time: {:.2}ms", min_inference_time.as_millis());
-        println!("   Max inference time: {:.2}ms", max_inference_time.as_millis());
-        println!("   Total inference time: {:.2}s", self.total_inference_time.as_secs_f64());
-        println!("   Inference efficiency: {:.1}%",
-            (self.total_inference_time.as_secs_f64() / total_time.as_secs_f64()) * 100.0);
+        println!(
+            "   Average inference time: {:.2}ms",
+            avg_inference_time.as_millis()
+        );
+        println!(
+            "   Min inference time: {:.2}ms",
+            min_inference_time.as_millis()
+        );
+        println!(
+            "   Max inference time: {:.2}ms",
+            max_inference_time.as_millis()
+        );
+        println!(
+            "   Total inference time: {:.2}s",
+            self.total_inference_time.as_secs_f64()
+        );
+        println!(
+            "   Inference efficiency: {:.1}%",
+            (self.total_inference_time.as_secs_f64() / total_time.as_secs_f64()) * 100.0
+        );
     }
 }
 
