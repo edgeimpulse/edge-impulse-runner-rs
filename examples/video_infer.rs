@@ -457,15 +457,18 @@ async fn initialize_model(
             return Err("EIM mode requires the 'eim' feature to be enabled".into());
         }
     } else {
-        // FFI mode - no model file needed (default)
-        println!("Using FFI mode (default)");
-        let model = if debug {
-            EdgeImpulseModel::new_with_debug(true)?
-        } else {
-            EdgeImpulseModel::new()?
-        };
+        // Auto-detect which backend to use based on available features
         #[cfg(feature = "ffi")]
         {
+            // FFI mode - no model file needed (default)
+            println!("Using FFI mode (default)");
+            let model = if debug {
+                EdgeImpulseModel::new_with_debug(true)?
+            } else {
+                EdgeImpulseModel::new()?
+            };
+
+            // Print model metadata for FFI mode
             let metadata = ModelMetadata::get();
             println!("\nModel Metadata:");
             println!("===============");
@@ -510,8 +513,24 @@ async fn initialize_model(
             println!("Has Anomaly Detection: {}", metadata.has_anomaly);
             println!("Has Object Tracking: {}", metadata.has_object_tracking);
             println!("===============\n");
+
+            model
         }
-        model
+        #[cfg(all(feature = "eim", not(feature = "ffi")))]
+        {
+            // Only EIM feature available, use EIM mode
+            println!("Using EIM mode (FFI not available)");
+            let model_path = _model_path.ok_or("Model path is required for EIM mode")?;
+            if debug {
+                EdgeImpulseModel::new_eim_with_debug(model_path, true)?
+            } else {
+                EdgeImpulseModel::new_eim(model_path)?
+            }
+        }
+        #[cfg(not(any(feature = "ffi", feature = "eim")))]
+        {
+            return Err("No backend available. Enable either 'ffi' or 'eim' feature.".into());
+        }
     };
 
     // Set thresholds if provided (not supported in current backend abstraction)

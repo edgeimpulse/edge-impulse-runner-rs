@@ -64,15 +64,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err("EIM mode requires the 'eim' feature to be enabled".into());
         }
     } else {
-        // FFI mode - no model file needed (default)
-        println!("Using FFI mode (default)");
-        let model = if params.debug {
-            EdgeImpulseModel::new_with_debug(true)?
-        } else {
-            EdgeImpulseModel::new()?
-        };
+        // Auto-detect which backend to use based on available features
         #[cfg(feature = "ffi")]
         {
+            // FFI mode - no model file needed (default)
+            println!("Using FFI mode (default)");
+            let model = if params.debug {
+                EdgeImpulseModel::new_with_debug(true)?
+            } else {
+                EdgeImpulseModel::new()?
+            };
+
+            // Print model metadata for FFI mode
             let metadata = ModelMetadata::get();
             println!("\nModel Metadata:");
             println!("===============");
@@ -117,8 +120,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Has Anomaly Detection: {}", metadata.has_anomaly);
             println!("Has Object Tracking: {}", metadata.has_object_tracking);
             println!("===============\n");
+
+            model
         }
-        model
+        #[cfg(all(feature = "eim", not(feature = "ffi")))]
+        {
+            // Only EIM feature available, use EIM mode
+            println!("Using EIM mode (FFI not available)");
+            let model_path = params.model.ok_or("Model path is required for EIM mode")?;
+            if params.debug {
+                EdgeImpulseModel::new_eim_with_debug(&model_path, true)?
+            } else {
+                EdgeImpulseModel::new_eim(&model_path)?
+            }
+        }
+        #[cfg(not(any(feature = "ffi", feature = "eim")))]
+        {
+            return Err("No backend available. Enable either 'ffi' or 'eim' feature.".into());
+        }
     };
 
     let audio_path = PathBuf::from(&params.audio);
