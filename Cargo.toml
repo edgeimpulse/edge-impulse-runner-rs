@@ -39,7 +39,7 @@ urlencoding = "2.1.3"
 rand = "0.8"
 tempfile = "3.10.0"
 
-edge-impulse-ffi-rs = { git = "https://github.com/edgeimpulse/edge-impulse-ffi-rs.git", rev = "078f38f", optional = true }
+edge-impulse-ffi-rs = { git = "https://github.com/edgeimpulse/edge-impulse-ffi-rs.git", rev = "68bc8b2", optional = true }
 
 [features]
 default = ["ffi"]

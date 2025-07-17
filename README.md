@@ -87,15 +87,31 @@ This means you can:
 - Copy from a custom path (useful for Docker builds, CI/CD)
 - Download from Edge Impulse Studio (requires API credentials)
 
-**Note**: Since `edge-impulse-ffi-rs` is managed as a Cargo dependency, you cannot easily manually copy files into its `model/` directory. Use environment variables instead.
+**Note**: The project now has its own `model/` directory that follows the same pattern as `edge-impulse-ffi-rs`. Models are automatically copied here during aarch64 builds, and this directory is gitignored.
 
-### EIM Mode (Legacy/Compatibility)
-> **Not recommended except for legacy/dev use.**
+---
 
+## Building with a Local Model (macOS and aarch64 Docker)
+
+You can use environment variables to control model selection and build options for both host and cross-compilation builds. The primary variable is:
+
+- `EI_MODEL`: Path to your Edge Impulse model directory (e.g., `~/Downloads/model-person-detection`)
+
+For a complete list of available build flags and environment variables, see the [edge-impulse-ffi-rs documentation](https://github.com/edgeimpulse/edge-impulse-ffi-rs).
+
+### On macOS (host build):
 ```sh
-cargo build --no-default-features --features eim
-cargo run --example basic_infer -- --model path/to/model.eim --features "0.1,0.2,0.3"
+EI_MODEL=~/Downloads/model-person-detection cargo build --release --features ffi
 ```
+
+### On aarch64 (cross-compile in Docker):
+```sh
+EI_MODEL=~/Downloads/model-person-detection ./build-aarch64.sh
+```
+
+**Note**: For aarch64 builds, the model is automatically copied to the local `model/` directory before building. This directory is gitignored and follows the same pattern as `edge-impulse-ffi-rs`.
+
+These environment variables will be forwarded into the Docker build automatically. You can also use them with other scripts (e.g., test or run scripts) in the same way.
 
 ---
 
@@ -138,7 +154,7 @@ FFI mode is enabled by default. You can provide model files in several ways:
 1. **Copy from custom path**: Set `EI_MODEL=/path/to/your/model`
 2. **Download from Edge Impulse Studio**: Set `EI_PROJECT_ID` and `EI_API_KEY` environment variables
 
-**Note**: Since `edge-impulse-ffi-rs` is managed as a Cargo dependency, you cannot easily manually copy files into its `model/` directory. Use environment variables instead.
+**Note**: The project now has its own `model/` directory that follows the same pattern as `edge-impulse-ffi-rs`. Models are automatically copied here during aarch64 builds, and this directory is gitignored.
 
 ---
 
@@ -253,11 +269,11 @@ Version 2.0.0 introduces significant improvements and new features while maintai
 
 ### FFI Build Modes
 
-- **Default (TensorFlow Lite Micro - for microcontrollers):**
+- **Default (TensorFlow Lite Micro):**
   ```sh
   cargo build
   ```
-- **Full TensorFlow Lite (for desktop/server):**
+- **Full TensorFlow Lite:**
   ```sh
   USE_FULL_TFLITE=1 cargo build
   ```
@@ -348,6 +364,107 @@ EI_MODEL=/path/to/model cargo build
 ```
 
 **Note**: The `CLEAN_MODEL=1` environment variable only works when building `edge-impulse-ffi-rs` directly. When using it as a dependency through `edge-impulse-runner-rs`, use `cargo clean -p edge-impulse-ffi-rs` instead.
+
+### Building for aarch64
+
+This project supports cross-compilation to aarch64 (ARM64) using Docker. This is useful for deploying to ARM64 devices like Raspberry Pi 4, NVIDIA Jetson, or other ARM64 servers.
+
+#### Prerequisites
+
+- Docker and docker-compose installed
+- Model files available (via `EI_MODEL`, `EI_PROJECT_ID`/`EI_API_KEY`, or copied to `edge-impulse-ffi-rs/model/`)
+
+#### Quick Build
+
+```sh
+# Build for aarch64 using Docker
+./build-aarch64.sh
+
+# Or use Makefile
+make build-aarch64
+```
+
+
+
+#### Testing the image_infer Example
+
+```sh
+# Test with default test image and debug output
+./test-aarch64-image-infer.sh -d
+
+# Test with specific image
+./test-aarch64-image-infer.sh -i my_image.jpg -d
+
+# Test with custom model
+./test-aarch64-image-infer.sh -m /path/to/model -d
+
+# Or use Makefile
+make test-aarch64
+make test-aarch64 IMAGE=my_image.jpg
+make test-aarch64 MODEL=/path/to/model
+```
+
+#### Interactive Development
+
+```sh
+# Open interactive shell in Docker container
+./docker-shell.sh
+
+# Or use Makefile
+make shell
+```
+
+Inside the container, you can run:
+```sh
+# Build the example
+cargo build --example image_infer --target aarch64-unknown-linux-gnu --features ffi --release
+
+# Run the example
+./target/aarch64-unknown-linux-gnu/release/examples/image_infer --image examples/assets/test_image.png --debug
+```
+
+#### Test Images
+
+You can place test images in `examples/assets/` to avoid copying them each time. This folder is gitignored, so your test images won't be committed to the repository.
+
+#### Environment Variables
+
+The Docker setup supports the same environment variables as local builds:
+
+```sh
+# Use custom model path
+EI_MODEL=/path/to/model ./test-aarch64-image-infer.sh -d
+
+# Use Edge Impulse API
+EI_PROJECT_ID=12345 EI_API_KEY=your-api-key ./test-aarch64-image-infer.sh -d
+
+# Use full TensorFlow Lite
+USE_FULL_TFLITE=1 ./test-aarch64-image-infer.sh -d
+```
+
+#### Cross-Compilation Features
+
+The aarch64 Docker setup includes:
+
+- **Full GStreamer support**: All GStreamer plugins and development libraries for audio/video processing
+- **GLib development**: Complete GLib ecosystem for system integration
+- **Cross-compilation tools**: aarch64-linux-gnu toolchain for ARM64 builds
+- **Rust toolchain**: Rust nightly with aarch64-unknown-linux-gnu target
+- **Model support**: Automatic model copying from host via volume mounts
+- **Example builds**: All examples compiled with full feature support
+
+#### Manual Docker Commands
+
+```sh
+# Build Docker image
+docker-compose build
+
+# Build example in container
+docker-compose run --rm aarch64-build cargo build --example image_infer --target aarch64-unknown-linux-gnu --features ffi --release
+
+# Run example in container
+docker-compose run --rm aarch64-build ./target/aarch64-unknown-linux-gnu/release/examples/image_infer --image examples/assets/test_image.png --debug
+```
 
 ---
 
