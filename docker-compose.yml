@@ -14,6 +14,8 @@ services:
       - rustup-cache:/root/.rustup
       # Mount model directory if EI_MODEL is set
       - ${EI_MODEL:-./model}:/host-model:ro
+      # Mount test images
+      - ./examples/assets:/assets:ro
     environment:
       # Pass through environment variables
       - EI_MODEL=/host-model
