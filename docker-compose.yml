@@ -14,8 +14,39 @@ services:
       - EI_MODEL=${EI_MODEL:-}
       - EI_PROJECT_ID=${EI_PROJECT_ID:-}
       - EI_API_KEY=${EI_API_KEY:-}
-      - USE_FULL_TFLITE=${USE_FULL_TFLITE:-}
       - EI_ENGINE=${EI_ENGINE:-}
+      - EDGE_IMPULSE_STUDIO_HOST=${EDGE_IMPULSE_STUDIO_HOST:-}
+
+      # Build configuration
+      - USE_FULL_TFLITE=${USE_FULL_TFLITE:-}
+      - FORCE_REBUILD=${FORCE_REBUILD:-}
+      - CLEAN_MODEL=${CLEAN_MODEL:-}
+      - NUM_JOBS=${NUM_JOBS:-}
+
+      # Platform-specific targets
+      - TARGET_MAC_ARM64=${TARGET_MAC_ARM64:-}
+      - TARGET_MAC_X86_64=${TARGET_MAC_X86_64:-}
+      - TARGET_LINUX_X86=${TARGET_LINUX_X86:-}
+      - TARGET_LINUX_AARCH64=${TARGET_LINUX_AARCH64:-}
+      - TARGET_LINUX_ARMV7=${TARGET_LINUX_ARMV7:-}
+      - TARGET_JETSON_NANO=${TARGET_JETSON_NANO:-}
+      - TARGET_JETSON_ORIN=${TARGET_JETSON_ORIN:-}
+
+      # Hardware accelerators and backends
+      - USE_TVM=${USE_TVM:-}
+      - USE_ONNX=${USE_ONNX:-}
+      - USE_QUALCOMM_QNN=${USE_QUALCOMM_QNN:-}
+      - USE_ETHOS=${USE_ETHOS:-}
+      - USE_AKIDA=${USE_AKIDA:-}
+      - USE_MEMRYX=${USE_MEMRYX:-}
+      - LINK_TFLITE_FLEX_LIBRARY=${LINK_TFLITE_FLEX_LIBRARY:-}
+      - EI_CLASSIFIER_USE_MEMRYX_SOFTWARE=${EI_CLASSIFIER_USE_MEMRYX_SOFTWARE:-}
+
+      # Advanced configuration
+      - TENSORRT_VERSION=${TENSORRT_VERSION:-}
+      - TVM_HOME=${TVM_HOME:-}
+      - QNN_SDK_ROOT=${QNN_SDK_ROOT:-}
+      - PYTHON_CROSS_PATH=${PYTHON_CROSS_PATH:-}
     working_dir: /app
     tty: true
     stdin_open: true
