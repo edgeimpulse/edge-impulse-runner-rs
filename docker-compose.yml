@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  aarch64-build:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mount the current directory to /app
+      - .:/app
+      # Mount cargo cache to speed up builds
+      - cargo-cache:/usr/local/cargo
+      # Mount rustup cache
+      - rustup-cache:/root/.rustup
+      # Mount model directory if EI_MODEL is set
+      - ${EI_MODEL:-./model}:/host-model:ro
+      # Mount test images
+      - ./examples/assets:/assets:ro
+    environment:
+      # Pass through environment variables
+      - EI_MODEL=/host-model
+      - EI_PROJECT_ID=${EI_PROJECT_ID:-}
+      - EI_API_KEY=${EI_API_KEY:-}
+      - EI_ENGINE=${EI_ENGINE:-tflite}
+      - USE_FULL_TFLITE=${USE_FULL_TFLITE:-}
+      - TARGET_LINUX_AARCH64=1
+      - CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc
+      - CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
+    working_dir: /app
+    command: ["/usr/local/bin/build-aarch64.sh"]
+    # Remove container after build
+    restart: "no"
+
+volumes:
+  cargo-cache:
+  rustup-cache:

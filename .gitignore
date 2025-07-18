@@ -45,3 +45,12 @@ Makefile
 # Backup files
 *.bak
 *.backup
+
+# Test assets (images, etc.)
+examples/assets/
+
+# Model folder (keep only README.md and .gitignore)
+/model/*
+!/model/README.md
+!/model/.gitignore
+/model/**/

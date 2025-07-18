@@ -89,12 +89,97 @@ This means you can:
 
 **Note**: Since `edge-impulse-ffi-rs` is managed as a Cargo dependency, you cannot easily manually copy files into its `model/` directory. Use environment variables instead.
 
-### EIM Mode (Legacy/Compatibility)
-> **Not recommended except for legacy/dev use.**
+---
+
+## Building for Different Platforms
+
+### Local Development (macOS/Linux)
+
+You can use environment variables to control model selection and build options for host builds:
 
 ```sh
-cargo build --no-default-features --features eim
-cargo run --example basic_infer -- --model path/to/model.eim --features "0.1,0.2,0.3"
+# With local model
+EI_MODEL=~/Downloads/model-person-detection cargo build --release --features ffi
+
+# With API credentials
+EI_PROJECT_ID=12345 EI_API_KEY=your-api-key cargo build --release --features ffi
+
+# With full TensorFlow Lite
+USE_FULL_TFLITE=1 EI_MODEL=~/Downloads/model-person-detection cargo build --release --features ffi
+```
+
+### Cross-Compilation for aarch64 (ARM64)
+
+This project supports cross-compilation to aarch64 (ARM64) using Docker. This is useful for deploying to ARM64 devices like Raspberry Pi 4, NVIDIA Jetson, or other ARM64 servers.
+
+#### Prerequisites
+
+- Docker and docker-compose installed
+- Model files available (via `EI_MODEL`, `EI_PROJECT_ID`/`EI_API_KEY`, or copied to `model/`)
+
+#### Quick Build
+
+```sh
+# Build for aarch64 using Docker with local model
+EI_MODEL=~/Downloads/model-person-detection docker-compose up --build
+
+# Build for aarch64 using Docker with API credentials
+EI_PROJECT_ID=12345 EI_API_KEY=your-api-key docker-compose up --build
+
+# Build for aarch64 using Docker with existing model in model/ directory
+docker-compose up --build
+```
+
+#### Running Examples
+
+After building, you can run examples inside the Docker container:
+
+```sh
+# Run image inference example
+docker-compose run --rm -e EI_MODEL=/host-model aarch64-build bash -c "target/aarch64-unknown-linux-gnu/release/examples/image_infer --image /assets/test_image.jpg"
+
+# Run basic inference example
+docker-compose run --rm -e EI_MODEL=/host-model aarch64-build bash -c "target/aarch64-unknown-linux-gnu/release/examples/basic_infer --features '0.1,0.2,0.3'"
+```
+
+#### Test Images
+
+You can place test images in `examples/assets/` to avoid copying them each time. This folder is gitignored, so your test images won't be committed to the repository.
+
+```sh
+# Copy your test image
+cp ~/Downloads/person.5j8hm0ug.jpg examples/assets/
+
+# Run with the test image
+docker-compose run --rm -e EI_MODEL=/host-model aarch64-build bash -c "target/aarch64-unknown-linux-gnu/release/examples/image_infer --image /assets/person.5j8hm0ug.jpg"
+```
+
+#### Environment Variables
+
+The Docker setup supports the same environment variables as local builds:
+
+```sh
+# Use custom model path
+EI_MODEL=~/Downloads/model-person-detection docker-compose up --build
+
+# Use Edge Impulse API
+EI_PROJECT_ID=12345 EI_API_KEY=your-api-key docker-compose up --build
+
+# Use full TensorFlow Lite
+USE_FULL_TFLITE=1 EI_MODEL=~/Downloads/model-person-detection docker-compose up --build
+```
+
+#### Manual Docker Commands
+
+```sh
+# Build Docker image
+docker-compose build
+
+# Build example in container
+docker-compose run --rm aarch64-build cargo build --example image_infer --target aarch64-unknown-linux-gnu --features ffi --release
+
+# Run example in container
+docker-compose run --rm aarch64-build ./target/aarch64-unknown-linux-gnu/release/examples/image_infer --image /assets/test_image.jpg --debug
 ```
 
 ---
@@ -138,7 +223,7 @@ FFI mode is enabled by default. You can provide model files in several ways:
 1. **Copy from custom path**: Set `EI_MODEL=/path/to/your/model`
 2. **Download from Edge Impulse Studio**: Set `EI_PROJECT_ID` and `EI_API_KEY` environment variables
 
-**Note**: Since `edge-impulse-ffi-rs` is managed as a Cargo dependency, you cannot easily manually copy files into its `model/` directory. Use environment variables instead.
+**Note**: The project now has its own `model/` directory that follows the same pattern as `edge-impulse-ffi-rs`. Models are automatically copied here during aarch64 builds, and this directory is gitignored.
 
 ---
 
@@ -253,11 +338,11 @@ Version 2.0.0 introduces significant improvements and new features while maintai
 
 ### FFI Build Modes
 
-- **Default (TensorFlow Lite Micro - for microcontrollers):**
+- **Default (TensorFlow Lite Micro):**
   ```sh
   cargo build
   ```
-- **Full TensorFlow Lite (for desktop/server):**
+- **Full TensorFlow Lite:**
   ```sh
   USE_FULL_TFLITE=1 cargo build
   ```
