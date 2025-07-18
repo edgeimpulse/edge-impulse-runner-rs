@@ -87,7 +87,7 @@ This means you can:
 - Copy from a custom path (useful for Docker builds, CI/CD)
 - Download from Edge Impulse Studio (requires API credentials)
 
-**Note**: The project now has its own `model/` directory that follows the same pattern as `edge-impulse-ffi-rs`. Models are automatically copied here during aarch64 builds, and this directory is gitignored.
+**Note**: Since `edge-impulse-ffi-rs` is managed as a Cargo dependency, you cannot easily manually copy files into its `model/` directory. Use environment variables instead.
 
 ---
 
@@ -168,17 +168,6 @@ EI_PROJECT_ID=12345 EI_API_KEY=your-api-key docker-compose up --build
 # Use full TensorFlow Lite
 USE_FULL_TFLITE=1 EI_MODEL=~/Downloads/model-person-detection docker-compose up --build
 ```
-
-#### Cross-Compilation Features
-
-The aarch64 Docker setup includes:
-
-- **Full GStreamer support**: All GStreamer plugins and development libraries for audio/video processing
-- **GLib development**: Complete GLib ecosystem for system integration
-- **Cross-compilation tools**: aarch64-linux-gnu toolchain for ARM64 builds
-- **Rust toolchain**: Rust nightly with aarch64-unknown-linux-gnu target
-- **Model support**: Automatic model copying from host via volume mounts
-- **Example builds**: All examples compiled with full feature support
 
 #### Manual Docker Commands
 
