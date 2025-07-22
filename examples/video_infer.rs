@@ -161,9 +161,7 @@ struct VideoInferParams {
     #[clap(long)]
     threshold: Option<f32>,
 
-    /// Use EIM mode (legacy, not recommended)
-    #[clap(long)]
-    eim: bool,
+
 
     /// Enable performance monitoring
     #[clap(long)]
@@ -436,7 +434,6 @@ async fn initialize_model(
     debug: bool,
     thresholds: Option<&str>,
     threshold: Option<f32>,
-    eim_mode: bool,
 ) -> Result<
     (
         Arc<Mutex<EdgeImpulseModel>>,
@@ -444,23 +441,7 @@ async fn initialize_model(
     ),
     Box<dyn std::error::Error>,
 > {
-    let mut model_instance = if eim_mode {
-        // EIM mode - model file required
-        #[cfg(feature = "eim")]
-        {
-            println!("Using EIM mode (legacy)");
-            let model_path = _model_path.ok_or("Model path is required for EIM mode")?;
-            if debug {
-                EdgeImpulseModel::new_eim_with_debug(model_path, true)?
-            } else {
-                EdgeImpulseModel::new_eim(model_path)?
-            }
-        }
-        #[cfg(not(feature = "eim"))]
-        {
-            return Err("EIM mode requires the 'eim' feature to be enabled".into());
-        }
-    } else {
+    let mut model_instance = {
         // Auto-detect which backend to use based on available features
         #[cfg(feature = "ffi")]
         {
@@ -613,7 +594,7 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
         params.debug,
         params.thresholds.as_deref(),
         params.threshold,
-        params.eim,
+
     )
     .await?;
 

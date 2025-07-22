@@ -35,9 +35,7 @@ struct Args {
     #[arg(short, long, default_value_t = false)]
     debug: bool,
 
-    /// Use EIM mode (legacy, not recommended)
-    #[arg(long, default_value_t = false)]
-    eim: bool,
+
 
     /// Set object detection threshold (0.0 to 1.0)
     #[arg(long)]
@@ -94,25 +92,8 @@ fn process_image(
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    // Initialize the model
-    let mut model = if args.eim {
-        // EIM mode - model file required
-        #[cfg(feature = "eim")]
-        {
-            println!("Using EIM mode (legacy)");
-            let model_path = args.model.ok_or("Model path is required for EIM mode")?;
-            if args.debug {
-                EdgeImpulseModel::new_eim_with_debug(&model_path, true)?
-            } else {
-                EdgeImpulseModel::new_eim(&model_path)?
-            }
-        }
-        #[cfg(not(feature = "eim"))]
-        {
-            return Err("EIM mode requires the 'eim' feature to be enabled".into());
-        }
-    } else {
-        // Auto-detect which backend to use based on available features
+    // Initialize the model - auto-detect which backend to use based on available features
+    let mut model = {
         #[cfg(feature = "ffi")]
         {
             // FFI mode - no model file needed (default)
