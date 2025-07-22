@@ -274,7 +274,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #### Setting Model Thresholds
 
-You can dynamically set thresholds for different model types at runtime. This functionality is supported in both EIM and FFI backends:
+You can dynamically set thresholds for different model types at runtime.
 
 ```rust
 use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
@@ -314,22 +314,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 - **Object Detection**: Set minimum confidence score for detected objects
 - **Anomaly Detection**: Set minimum anomaly score for GMM-based anomaly detection
 - **Object Tracking**: Set tracking parameters including threshold, grace period, and max observations
-
-**Backend Support:**
-- **EIM Backend**: Full support for all threshold types
-- **FFI Backend**: Full support for all threshold types (requires Edge Impulse C++ SDK)
-
-**API Options:**
-- **High-level API**: Use `model.set_threshold()` for convenient threshold setting
-- **Direct FFI API**: Use `edge_impulse_runner::ffi::set_*_threshold()` functions for direct control
-
-```rust
-// High-level API
-model.set_threshold(ModelThreshold::ObjectDetection { id: 0, min_score: 0.3 })?;
-
-// Direct FFI API
-edge_impulse_runner::ffi::set_object_detection_threshold(0, 0.3)?;
-```
 
 #### FFI Mode with Debug
 ```rust
