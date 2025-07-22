@@ -38,9 +38,7 @@ struct Args {
     #[arg(short, long, default_value_t = false)]
     debug: bool,
 
-    /// Use EIM mode instead of FFI mode (legacy)
-    #[arg(long, default_value_t = false)]
-    eim: bool,
+
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -53,32 +51,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|s| s.trim().parse::<f32>().expect("Failed to parse feature"))
         .collect();
 
-    // Create model instance based on mode
-    let mut model = if args.eim {
-        // EIM mode - model file required
-        println!("Using EIM mode (legacy)");
-        let model_path = args.model.ok_or("Model path is required for EIM mode")?;
-
-        // Adjust path to be relative to project root if not absolute
-        let model_path = if !model_path.is_absolute() {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(&model_path)
-        } else {
-            model_path
-        };
-
-        if args.debug {
-            println!("Loading model from: {}", model_path.display());
-        }
-        #[cfg(feature = "eim")]
-        {
-            EdgeImpulseModel::new_eim(&model_path)?
-        }
-        #[cfg(not(feature = "eim"))]
-        {
-            return Err("EIM mode requires the 'eim' feature to be enabled".into());
-        }
-    } else {
-        // Auto-detect which backend to use based on available features
+    // Create model instance - auto-detect which backend to use based on available features
+    let mut model = {
         #[cfg(feature = "ffi")]
         {
             // FFI mode - no model file needed (default)

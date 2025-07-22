@@ -8,15 +8,15 @@ use std::path::Path;
 /// Main Edge Impulse model interface that abstracts over different backends
 ///
 /// This struct provides a unified interface for running inference on Edge Impulse models,
-/// regardless of whether you're using EIM binary communication or FFI direct calls.
-/// The backend is automatically selected based on the constructor used.
+/// with automatic backend detection based on available features. The model automatically
+/// chooses between FFI (recommended) and EIM (legacy) backends.
 ///
 /// ## Examples
 ///
 /// ```no_run
 /// use edge_impulse_runner::EdgeImpulseModel;
 ///
-/// // FFI mode (default - recommended)
+/// // Automatic backend detection (FFI if available, EIM otherwise)
 /// let mut model = EdgeImpulseModel::new()?;
 ///
 /// // Run inference

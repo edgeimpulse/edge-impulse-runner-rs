@@ -1001,8 +1001,9 @@ impl ModelMetadata {
 /// ```rust
 /// use edge_impulse_runner::ffi::wrapper::set_object_detection_threshold;
 ///
-/// // Set minimum confidence to 0.5 for object detection block 0
-/// if let Err(e) = set_object_detection_threshold(0, 0.5) {
+/// // Set minimum confidence to 0.5 for object detection block
+/// // Note: Use the actual block ID from your model metadata
+/// if let Err(e) = set_object_detection_threshold(8, 0.5) {
 ///     eprintln!("Failed to set object detection threshold: {:?}", e);
 /// }
 /// ```

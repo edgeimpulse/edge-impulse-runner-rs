@@ -203,8 +203,8 @@ cargo run --example audio_infer -- --audio /path/to/audio.wav
 
 ### EIM Mode (Legacy)
 ```sh
-# For EIM mode, use the --eim flag and provide a model path
-cargo run --example basic_infer -- --eim --model path/to/model.eim --features "0.1,0.2,0.3"
+# For EIM mode, enable the eim feature and provide a model path
+cargo run --example basic_infer --no-default-features --features eim -- --model path/to/model.eim --features "0.1,0.2,0.3"
 ```
 
 ---
@@ -285,14 +285,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Set object detection threshold
     let obj_threshold = ModelThreshold::ObjectDetection {
-        id: 0,  // Block ID
+        id: 8,  // Block ID (use actual ID from your model)
         min_score: 0.3,  // Minimum confidence score
     };
     model.set_threshold(obj_threshold)?;
 
     // Set anomaly detection threshold
     let anomaly_threshold = ModelThreshold::AnomalyGMM {
-        id: 1,  // Block ID
+        id: 1,  // Block ID (use actual ID from your model)
         min_anomaly_score: 0.4,  // Minimum anomaly score
     };
     model.set_threshold(anomaly_threshold)?;
