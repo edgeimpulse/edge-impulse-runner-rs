@@ -985,6 +985,141 @@ impl ModelMetadata {
     }
 }
 
+/// Set the minimum confidence threshold for object detection
+///
+/// # Arguments
+///
+/// * `block_id` - The ID of the learning block that performs object detection
+/// * `min_score` - The minimum confidence score (0.0 to 1.0) for detected objects
+///
+/// # Returns
+///
+/// Returns `Ok(())` on success, or an error if the block was not found or is not an object detection block.
+///
+/// # Example
+///
+/// ```rust
+/// use edge_impulse_runner::ffi::wrapper::set_object_detection_threshold;
+///
+/// // Set minimum confidence to 0.5 for object detection block
+/// // Note: Use the actual block ID from your model metadata
+/// if let Err(e) = set_object_detection_threshold(8, 0.5) {
+///     eprintln!("Failed to set object detection threshold: {:?}", e);
+/// }
+/// ```
+#[cfg(feature = "ffi")]
+pub fn set_object_detection_threshold(block_id: u32, min_score: f32) -> EdgeImpulseResult<()> {
+    let result = unsafe {
+        edge_impulse_ffi_rs::bindings::ei_ffi_set_object_detection_threshold(block_id, min_score)
+    };
+
+    if result == edge_impulse_ffi_rs::bindings::EI_IMPULSE_ERROR::EI_IMPULSE_OK {
+        Ok(())
+    } else {
+        Err(result.into())
+    }
+}
+
+#[cfg(not(feature = "ffi"))]
+pub fn set_object_detection_threshold(_block_id: u32, _min_score: f32) -> EdgeImpulseResult<()> {
+    Err(EdgeImpulseError::UnsupportedInferencingEngine)
+}
+
+/// Set the minimum anomaly score threshold for anomaly detection
+///
+/// # Arguments
+///
+/// * `block_id` - The ID of the learning block that performs anomaly detection
+/// * `min_anomaly_score` - The minimum anomaly score threshold
+///
+/// # Returns
+///
+/// Returns `Ok(())` on success, or an error if the block was not found or is not an anomaly detection block.
+///
+/// # Example
+///
+/// ```rust
+/// use edge_impulse_runner::ffi::wrapper::set_anomaly_threshold;
+///
+/// // Set minimum anomaly score to 0.3 for anomaly detection block 1
+/// if let Err(e) = set_anomaly_threshold(1, 0.3) {
+///     eprintln!("Failed to set anomaly threshold: {:?}", e);
+/// }
+/// ```
+#[cfg(feature = "ffi")]
+pub fn set_anomaly_threshold(block_id: u32, min_anomaly_score: f32) -> EdgeImpulseResult<()> {
+    let result = unsafe {
+        edge_impulse_ffi_rs::bindings::ei_ffi_set_anomaly_threshold(block_id, min_anomaly_score)
+    };
+
+    if result == edge_impulse_ffi_rs::bindings::EI_IMPULSE_ERROR::EI_IMPULSE_OK {
+        Ok(())
+    } else {
+        Err(result.into())
+    }
+}
+
+#[cfg(not(feature = "ffi"))]
+pub fn set_anomaly_threshold(_block_id: u32, _min_anomaly_score: f32) -> EdgeImpulseResult<()> {
+    Err(EdgeImpulseError::UnsupportedInferencingEngine)
+}
+
+/// Set the threshold parameters for object tracking
+///
+/// # Arguments
+///
+/// * `block_id` - The ID of the postprocessing block that performs object tracking
+/// * `threshold` - The tracking threshold value
+/// * `keep_grace` - The grace period for keeping tracks
+/// * `max_observations` - The maximum number of observations to maintain
+///
+/// # Returns
+///
+/// Returns `Ok(())` on success, or an error if the block was not found or is not an object tracking block.
+///
+/// # Example
+///
+/// ```rust
+/// use edge_impulse_runner::ffi::wrapper::set_object_tracking_threshold;
+///
+/// // Set object tracking parameters for block 2
+/// if let Err(e) = set_object_tracking_threshold(2, 0.7, 5, 10) {
+///     eprintln!("Failed to set object tracking threshold: {:?}", e);
+/// }
+/// ```
+#[cfg(feature = "ffi")]
+pub fn set_object_tracking_threshold(
+    block_id: u32,
+    threshold: f32,
+    keep_grace: u32,
+    max_observations: u16,
+) -> EdgeImpulseResult<()> {
+    let result = unsafe {
+        edge_impulse_ffi_rs::bindings::ei_ffi_set_object_tracking_threshold(
+            block_id,
+            threshold,
+            keep_grace,
+            max_observations,
+        )
+    };
+
+    if result == edge_impulse_ffi_rs::bindings::EI_IMPULSE_ERROR::EI_IMPULSE_OK {
+        Ok(())
+    } else {
+        Err(result.into())
+    }
+}
+
+#[cfg(not(feature = "ffi"))]
+pub fn set_object_tracking_threshold(
+    _block_id: u32,
+    _threshold: f32,
+    _keep_grace: u32,
+    _max_observations: u16,
+) -> EdgeImpulseResult<()> {
+    Err(EdgeImpulseError::UnsupportedInferencingEngine)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

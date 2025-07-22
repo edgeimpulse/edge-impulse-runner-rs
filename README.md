@@ -203,8 +203,8 @@ cargo run --example audio_infer -- --audio /path/to/audio.wav
 
 ### EIM Mode (Legacy)
 ```sh
-# For EIM mode, use the --eim flag and provide a model path
-cargo run --example basic_infer -- --eim --model path/to/model.eim --features "0.1,0.2,0.3"
+# For EIM mode, enable the eim feature and provide a model path
+cargo run --example basic_infer --no-default-features --features eim -- --model path/to/model.eim --features "0.1,0.2,0.3"
 ```
 
 ---
@@ -268,6 +268,44 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Anomaly score: {:.2}%", normalized_anomaly * 100.0);
         }
     }
+    Ok(())
+}
+```
+
+#### Setting Model Thresholds
+
+You can dynamically set thresholds for different model types at runtime.
+
+```rust
+use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
+use edge_impulse_runner::types::ModelThreshold;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut model = EdgeImpulseModel::new()?;
+
+    // Set object detection threshold
+    let obj_threshold = ModelThreshold::ObjectDetection {
+        id: 8,  // Block ID (use actual ID from your model)
+        min_score: 0.3,  // Minimum confidence score
+    };
+    model.set_threshold(obj_threshold)?;
+
+    // Set anomaly detection threshold
+    let anomaly_threshold = ModelThreshold::AnomalyGMM {
+        id: 1,  // Block ID (use actual ID from your model)
+        min_anomaly_score: 0.4,  // Minimum anomaly score
+    };
+    model.set_threshold(anomaly_threshold)?;
+
+    // Set object tracking threshold
+    let tracking_threshold = ModelThreshold::ObjectTracking {
+        id: 2,  // Block ID
+        keep_grace: 5,  // Grace period
+        max_observations: 10,  // Max observations
+        threshold: 0.7,  // Tracking threshold
+    };
+    model.set_threshold(tracking_threshold)?;
+
     Ok(())
 }
 ```

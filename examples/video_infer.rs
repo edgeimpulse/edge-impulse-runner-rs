@@ -157,9 +157,9 @@ struct VideoInferParams {
     #[clap(long)]
     thresholds: Option<String>,
 
-    /// Use EIM mode (legacy, not recommended)
+    /// Set object detection threshold (0.0 to 1.0)
     #[clap(long)]
-    eim: bool,
+    threshold: Option<f32>,
 
     /// Enable performance monitoring
     #[clap(long)]
@@ -431,7 +431,7 @@ async fn initialize_model(
     _model_path: Option<&str>,
     debug: bool,
     thresholds: Option<&str>,
-    eim_mode: bool,
+    threshold: Option<f32>,
 ) -> Result<
     (
         Arc<Mutex<EdgeImpulseModel>>,
@@ -439,23 +439,7 @@ async fn initialize_model(
     ),
     Box<dyn std::error::Error>,
 > {
-    let model_instance = if eim_mode {
-        // EIM mode - model file required
-        #[cfg(feature = "eim")]
-        {
-            println!("Using EIM mode (legacy)");
-            let model_path = _model_path.ok_or("Model path is required for EIM mode")?;
-            if debug {
-                EdgeImpulseModel::new_eim_with_debug(model_path, true)?
-            } else {
-                EdgeImpulseModel::new_eim(model_path)?
-            }
-        }
-        #[cfg(not(feature = "eim"))]
-        {
-            return Err("EIM mode requires the 'eim' feature to be enabled".into());
-        }
-    } else {
+    let mut model_instance = {
         // Auto-detect which backend to use based on available features
         #[cfg(feature = "ffi")]
         {
@@ -539,6 +523,43 @@ async fn initialize_model(
         );
     }
 
+    // Apply object detection threshold if provided
+    if let Some(threshold_value) = threshold {
+        println!("Setting object detection threshold to {}", threshold_value);
+
+        // Get model parameters to find object detection thresholds
+        let model_params_temp = model_instance.parameters()?;
+
+        // Collect object detection thresholds to avoid borrowing issues
+        let object_detection_thresholds: Vec<_> = model_params_temp
+            .thresholds
+            .iter()
+            .filter_map(|t| {
+                if let edge_impulse_runner::types::ModelThreshold::ObjectDetection { id, .. } = t {
+                    Some(*id)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Apply the new threshold to each object detection block
+        for block_id in object_detection_thresholds {
+            let new_threshold = edge_impulse_runner::types::ModelThreshold::ObjectDetection {
+                id: block_id,
+                min_score: threshold_value,
+            };
+
+            match model_instance.set_threshold(new_threshold) {
+                Ok(()) => println!(
+                    "Successfully set object detection threshold for block ID {} to {}",
+                    block_id, threshold_value
+                ),
+                Err(e) => println!("Failed to set threshold for block ID {}: {}", block_id, e),
+            }
+        }
+    }
+
     // Get model parameters
     let model_params = model_instance.parameters()?.clone();
 
@@ -570,7 +591,7 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
         params.model.as_deref(),
         params.debug,
         params.thresholds.as_deref(),
-        params.eim,
+        params.threshold,
     )
     .await?;
 

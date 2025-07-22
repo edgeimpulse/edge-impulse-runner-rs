@@ -65,6 +65,12 @@ pub trait InferenceBackend: Send + Sync {
         mean: f32,
         regions: &[(f32, u32, u32, u32, u32)],
     ) -> crate::types::VisualAnomalyResult;
+
+    /// Set a threshold for a specific model block
+    fn set_threshold(
+        &mut self,
+        threshold: crate::types::ModelThreshold,
+    ) -> Result<(), EdgeImpulseError>;
 }
 
 #[cfg(feature = "eim")]

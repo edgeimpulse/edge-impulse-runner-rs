@@ -213,6 +213,42 @@ impl EimBackend {
         }
     }
 
+    /// Update the cached model parameters with a new threshold
+    fn update_cached_threshold(&mut self, new_threshold: crate::types::ModelThreshold) {
+        // Find and update the existing threshold with the same ID, or add a new one
+        let mut found = false;
+
+        // First, try to find and update existing threshold
+        for i in 0..self.model_parameters.thresholds.len() {
+            let should_update = match (&self.model_parameters.thresholds[i], &new_threshold) {
+                (
+                    crate::types::ModelThreshold::ObjectDetection {
+                        id: existing_id, ..
+                    },
+                    crate::types::ModelThreshold::ObjectDetection { id: new_id, .. },
+                ) if *existing_id == *new_id => true,
+                (
+                    crate::types::ModelThreshold::AnomalyGMM {
+                        id: existing_id, ..
+                    },
+                    crate::types::ModelThreshold::AnomalyGMM { id: new_id, .. },
+                ) if *existing_id == *new_id => true,
+                _ => false,
+            };
+
+            if should_update {
+                self.model_parameters.thresholds[i] = new_threshold.clone();
+                found = true;
+                break;
+            }
+        }
+
+        // If no existing threshold was found, add the new one
+        if !found {
+            self.model_parameters.thresholds.push(new_threshold);
+        }
+    }
+
     /// Classify a single input
     fn classify(&mut self, input: &[f32]) -> Result<InferenceResult, EdgeImpulseError> {
         let classify = ClassifyMessage {
@@ -302,5 +338,80 @@ impl InferenceBackend for EimBackend {
         regions: &[(f32, u32, u32, u32, u32)],
     ) -> VisualAnomalyResult {
         (anomaly, max, mean, regions.to_vec())
+    }
+
+    fn set_threshold(
+        &mut self,
+        threshold: crate::types::ModelThreshold,
+    ) -> Result<(), EdgeImpulseError> {
+        // Convert ModelThreshold to ThresholdConfig
+        let threshold_config = match threshold {
+            crate::types::ModelThreshold::ObjectDetection { id, min_score } => {
+                crate::inference::messages::ThresholdConfig::ObjectDetection { id, min_score }
+            }
+            crate::types::ModelThreshold::AnomalyGMM {
+                id,
+                min_anomaly_score,
+            } => crate::inference::messages::ThresholdConfig::AnomalyGMM {
+                id,
+                min_anomaly_score,
+            },
+            _ => {
+                return Err(EdgeImpulseError::InvalidOperation(
+                    "Unsupported threshold type for EIM backend".to_string(),
+                ));
+            }
+        };
+
+        let set_threshold_msg = crate::inference::messages::SetThresholdMessage {
+            set_threshold: threshold_config,
+            id: self.next_message_id(),
+        };
+
+        let set_threshold_json = serde_json::to_string(&set_threshold_msg).map_err(|e| {
+            EdgeImpulseError::InvalidOperation(format!("Failed to serialize set_threshold: {e}"))
+        })?;
+
+        self.socket
+            .write_all(set_threshold_json.as_bytes())
+            .map_err(|e| {
+                EdgeImpulseError::ExecutionError(format!("Failed to send set_threshold: {e}"))
+            })?;
+        self.socket.write_all(b"\n").map_err(|e| {
+            EdgeImpulseError::ExecutionError(format!("Failed to send newline: {e}"))
+        })?;
+
+        let mut reader = BufReader::new(&self.socket);
+        let mut response_json = String::new();
+        reader.read_line(&mut response_json).map_err(|e| {
+            EdgeImpulseError::ExecutionError(format!("Failed to read set_threshold response: {e}"))
+        })?;
+
+        let response: crate::inference::messages::SetThresholdResponse = match serde_json::from_str(
+            &response_json,
+        ) {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!(
+                    "[EIM backend] Failed to parse set_threshold response: {}\nRaw response: {}",
+                    e,
+                    response_json.trim()
+                );
+                return Err(EdgeImpulseError::InvalidOperation(format!(
+                    "Failed to parse set_threshold response: {e}"
+                )));
+            }
+        };
+
+        if !response.success {
+            return Err(EdgeImpulseError::InvalidOperation(
+                "Failed to set threshold".to_string(),
+            ));
+        }
+
+        // Update the cached model parameters with the new threshold
+        self.update_cached_threshold(threshold);
+
+        Ok(())
     }
 }

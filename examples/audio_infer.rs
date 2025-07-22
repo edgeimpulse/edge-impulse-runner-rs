@@ -36,34 +36,13 @@ struct AudioInferParams {
     /// Enable debug output
     #[clap(short, long)]
     debug: bool,
-
-    /// Use EIM mode (legacy, not recommended)
-    #[clap(long)]
-    eim: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let params = AudioInferParams::parse();
 
-    // Create model instance based on mode
-    let mut model = if params.eim {
-        // EIM mode - model file required
-        #[cfg(feature = "eim")]
-        {
-            println!("Using EIM mode (legacy)");
-            let model_path = params.model.ok_or("Model path is required for EIM mode")?;
-            if params.debug {
-                EdgeImpulseModel::new_eim_with_debug(&model_path, true)?
-            } else {
-                EdgeImpulseModel::new_eim(&model_path)?
-            }
-        }
-        #[cfg(not(feature = "eim"))]
-        {
-            return Err("EIM mode requires the 'eim' feature to be enabled".into());
-        }
-    } else {
-        // Auto-detect which backend to use based on available features
+    // Create model instance - auto-detect which backend to use based on available features
+    let mut model = {
         #[cfg(feature = "ffi")]
         {
             // FFI mode - no model file needed (default)

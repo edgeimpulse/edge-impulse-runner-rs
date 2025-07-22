@@ -35,9 +35,9 @@ struct Args {
     #[arg(short, long, default_value_t = false)]
     debug: bool,
 
-    /// Use EIM mode (legacy, not recommended)
-    #[arg(long, default_value_t = false)]
-    eim: bool,
+    /// Set object detection threshold (0.0 to 1.0)
+    #[arg(long)]
+    threshold: Option<f32>,
 }
 
 fn process_image(
@@ -90,25 +90,8 @@ fn process_image(
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    // Initialize the model
-    let mut model = if args.eim {
-        // EIM mode - model file required
-        #[cfg(feature = "eim")]
-        {
-            println!("Using EIM mode (legacy)");
-            let model_path = args.model.ok_or("Model path is required for EIM mode")?;
-            if args.debug {
-                EdgeImpulseModel::new_eim_with_debug(&model_path, true)?
-            } else {
-                EdgeImpulseModel::new_eim(&model_path)?
-            }
-        }
-        #[cfg(not(feature = "eim"))]
-        {
-            return Err("EIM mode requires the 'eim' feature to be enabled".into());
-        }
-    } else {
-        // Auto-detect which backend to use based on available features
+    // Initialize the model - auto-detect which backend to use based on available features
+    let mut model = {
         #[cfg(feature = "ffi")]
         {
             // FFI mode - no model file needed (default)
@@ -186,6 +169,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get model parameters
     let model_params = model.parameters()?.clone();
+
+    // Apply threshold if provided
+    if let Some(threshold) = args.threshold {
+        println!("Setting object detection threshold to {}", threshold);
+
+        // Find object detection thresholds and apply the new threshold
+        for threshold_config in &model_params.thresholds {
+            if let ModelThreshold::ObjectDetection { id, .. } = threshold_config {
+                let new_threshold = ModelThreshold::ObjectDetection {
+                    id: *id,
+                    min_score: threshold,
+                };
+
+                match model.set_threshold(new_threshold) {
+                    Ok(()) => println!(
+                        "Successfully set object detection threshold for block ID {} to {}",
+                        id, threshold
+                    ),
+                    Err(e) => println!("Failed to set threshold for block ID {}: {}", id, e),
+                }
+            }
+        }
+    }
 
     // Get the min_anomaly_score threshold
     let min_anomaly_score = model_params
