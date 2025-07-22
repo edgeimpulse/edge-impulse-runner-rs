@@ -222,11 +222,15 @@ impl EimBackend {
         for i in 0..self.model_parameters.thresholds.len() {
             let should_update = match (&self.model_parameters.thresholds[i], &new_threshold) {
                 (
-                    crate::types::ModelThreshold::ObjectDetection { id: existing_id, .. },
+                    crate::types::ModelThreshold::ObjectDetection {
+                        id: existing_id, ..
+                    },
                     crate::types::ModelThreshold::ObjectDetection { id: new_id, .. },
                 ) if *existing_id == *new_id => true,
                 (
-                    crate::types::ModelThreshold::AnomalyGMM { id: existing_id, .. },
+                    crate::types::ModelThreshold::AnomalyGMM {
+                        id: existing_id, ..
+                    },
                     crate::types::ModelThreshold::AnomalyGMM { id: new_id, .. },
                 ) if *existing_id == *new_id => true,
                 _ => false,
@@ -336,15 +340,22 @@ impl InferenceBackend for EimBackend {
         (anomaly, max, mean, regions.to_vec())
     }
 
-    fn set_threshold(&mut self, threshold: crate::types::ModelThreshold) -> Result<(), EdgeImpulseError> {
+    fn set_threshold(
+        &mut self,
+        threshold: crate::types::ModelThreshold,
+    ) -> Result<(), EdgeImpulseError> {
         // Convert ModelThreshold to ThresholdConfig
         let threshold_config = match threshold {
             crate::types::ModelThreshold::ObjectDetection { id, min_score } => {
                 crate::inference::messages::ThresholdConfig::ObjectDetection { id, min_score }
             }
-            crate::types::ModelThreshold::AnomalyGMM { id, min_anomaly_score } => {
-                crate::inference::messages::ThresholdConfig::AnomalyGMM { id, min_anomaly_score }
-            }
+            crate::types::ModelThreshold::AnomalyGMM {
+                id,
+                min_anomaly_score,
+            } => crate::inference::messages::ThresholdConfig::AnomalyGMM {
+                id,
+                min_anomaly_score,
+            },
             _ => {
                 return Err(EdgeImpulseError::InvalidOperation(
                     "Unsupported threshold type for EIM backend".to_string(),
@@ -376,7 +387,9 @@ impl InferenceBackend for EimBackend {
             EdgeImpulseError::ExecutionError(format!("Failed to read set_threshold response: {e}"))
         })?;
 
-        let response: crate::inference::messages::SetThresholdResponse = match serde_json::from_str(&response_json) {
+        let response: crate::inference::messages::SetThresholdResponse = match serde_json::from_str(
+            &response_json,
+        ) {
             Ok(r) => r,
             Err(e) => {
                 eprintln!(

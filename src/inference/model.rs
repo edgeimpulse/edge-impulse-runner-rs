@@ -139,7 +139,10 @@ impl EdgeImpulseModel {
     }
 
     /// Set a threshold for a specific model block
-    pub fn set_threshold(&mut self, threshold: crate::types::ModelThreshold) -> Result<(), crate::error::EdgeImpulseError> {
+    pub fn set_threshold(
+        &mut self,
+        threshold: crate::types::ModelThreshold,
+    ) -> Result<(), crate::error::EdgeImpulseError> {
         self.backend.set_threshold(threshold)
     }
 }

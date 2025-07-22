@@ -143,7 +143,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-            // Apply threshold if provided
+    // Apply threshold if provided
     if let Some(threshold) = params.threshold {
         println!("Setting object detection threshold to {}", threshold);
 
@@ -151,7 +151,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let model_params = model.parameters()?;
 
         // Collect object detection thresholds to avoid borrowing issues
-        let object_detection_thresholds: Vec<_> = model_params.thresholds
+        let object_detection_thresholds: Vec<_> = model_params
+            .thresholds
             .iter()
             .filter_map(|t| {
                 if let edge_impulse_runner::types::ModelThreshold::ObjectDetection { id, .. } = t {
@@ -170,7 +171,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             match model.set_threshold(new_threshold) {
-                Ok(()) => println!("Successfully set object detection threshold for block ID {} to {}", block_id, threshold),
+                Ok(()) => println!(
+                    "Successfully set object detection threshold for block ID {} to {}",
+                    block_id, threshold
+                ),
                 Err(e) => println!("Failed to set threshold for block ID {}: {}", block_id, e),
             }
         }

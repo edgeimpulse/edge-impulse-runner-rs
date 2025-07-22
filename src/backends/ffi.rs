@@ -142,15 +142,21 @@ impl FfiBackend {
         for i in 0..self.parameters.thresholds.len() {
             let should_update = match (&self.parameters.thresholds[i], &new_threshold) {
                 (
-                    crate::types::ModelThreshold::ObjectDetection { id: existing_id, .. },
+                    crate::types::ModelThreshold::ObjectDetection {
+                        id: existing_id, ..
+                    },
                     crate::types::ModelThreshold::ObjectDetection { id: new_id, .. },
                 ) if *existing_id == *new_id => true,
                 (
-                    crate::types::ModelThreshold::AnomalyGMM { id: existing_id, .. },
+                    crate::types::ModelThreshold::AnomalyGMM {
+                        id: existing_id, ..
+                    },
                     crate::types::ModelThreshold::AnomalyGMM { id: new_id, .. },
                 ) if *existing_id == *new_id => true,
                 (
-                    crate::types::ModelThreshold::ObjectTracking { id: existing_id, .. },
+                    crate::types::ModelThreshold::ObjectTracking {
+                        id: existing_id, ..
+                    },
                     crate::types::ModelThreshold::ObjectTracking { id: new_id, .. },
                 ) if *existing_id == *new_id => true,
                 _ => false,
@@ -322,7 +328,10 @@ impl InferenceBackend for FfiBackend {
         (raw_anomaly, raw_max, raw_mean, raw_regions)
     }
 
-    fn set_threshold(&mut self, threshold: crate::types::ModelThreshold) -> Result<(), EdgeImpulseError> {
+    fn set_threshold(
+        &mut self,
+        threshold: crate::types::ModelThreshold,
+    ) -> Result<(), EdgeImpulseError> {
         // For FFI backend, we need to update the cached parameters
         // The actual threshold setting would need to be implemented in the FFI bindings
         // For now, we'll update the cached parameters and log a warning
@@ -337,47 +346,80 @@ impl InferenceBackend for FfiBackend {
             crate::types::ModelThreshold::ObjectDetection { id, min_score } => {
                 match crate::ffi::set_object_detection_threshold(id, min_score) {
                     Ok(()) => {
-                        self.debug_log(&format!("Successfully set object detection threshold for block {} to {}", id, min_score));
+                        self.debug_log(&format!(
+                            "Successfully set object detection threshold for block {} to {}",
+                            id, min_score
+                        ));
                     }
                     Err(e) => {
-                        self.debug_log(&format!("Failed to set object detection threshold: {:?}", e));
-                        return Err(EdgeImpulseError::InvalidOperation(
-                            format!("Failed to set object detection threshold: {:?}", e)
+                        self.debug_log(&format!(
+                            "Failed to set object detection threshold: {:?}",
+                            e
                         ));
+                        return Err(EdgeImpulseError::InvalidOperation(format!(
+                            "Failed to set object detection threshold: {:?}",
+                            e
+                        )));
                     }
                 }
             }
-            crate::types::ModelThreshold::AnomalyGMM { id, min_anomaly_score } => {
-                match crate::ffi::set_anomaly_threshold(id, min_anomaly_score) {
-                    Ok(()) => {
-                        self.debug_log(&format!("Successfully set anomaly threshold for block {} to {}", id, min_anomaly_score));
-                    }
-                    Err(e) => {
-                        self.debug_log(&format!("Failed to set anomaly threshold: {:?}", e));
-                        return Err(EdgeImpulseError::InvalidOperation(
-                            format!("Failed to set anomaly threshold: {:?}", e)
-                        ));
-                    }
+            crate::types::ModelThreshold::AnomalyGMM {
+                id,
+                min_anomaly_score,
+            } => match crate::ffi::set_anomaly_threshold(id, min_anomaly_score) {
+                Ok(()) => {
+                    self.debug_log(&format!(
+                        "Successfully set anomaly threshold for block {} to {}",
+                        id, min_anomaly_score
+                    ));
                 }
-            }
-            crate::types::ModelThreshold::ObjectTracking { id, keep_grace, max_observations, threshold } => {
-                match crate::ffi::set_object_tracking_threshold(id, threshold, keep_grace, max_observations as u16) {
+                Err(e) => {
+                    self.debug_log(&format!("Failed to set anomaly threshold: {:?}", e));
+                    return Err(EdgeImpulseError::InvalidOperation(format!(
+                        "Failed to set anomaly threshold: {:?}",
+                        e
+                    )));
+                }
+            },
+            crate::types::ModelThreshold::ObjectTracking {
+                id,
+                keep_grace,
+                max_observations,
+                threshold,
+            } => {
+                match crate::ffi::set_object_tracking_threshold(
+                    id,
+                    threshold,
+                    keep_grace,
+                    max_observations as u16,
+                ) {
                     Ok(()) => {
-                        self.debug_log(&format!("Successfully set object tracking threshold for block {} to {}", id, threshold));
+                        self.debug_log(&format!(
+                            "Successfully set object tracking threshold for block {} to {}",
+                            id, threshold
+                        ));
                     }
                     Err(e) => {
-                        self.debug_log(&format!("Failed to set object tracking threshold: {:?}", e));
-                        return Err(EdgeImpulseError::InvalidOperation(
-                            format!("Failed to set object tracking threshold: {:?}", e)
+                        self.debug_log(&format!(
+                            "Failed to set object tracking threshold: {:?}",
+                            e
                         ));
+                        return Err(EdgeImpulseError::InvalidOperation(format!(
+                            "Failed to set object tracking threshold: {:?}",
+                            e
+                        )));
                     }
                 }
             }
             crate::types::ModelThreshold::Unknown { id, unknown } => {
-                self.debug_log(&format!("Unknown threshold type for block {}: {}", id, unknown));
-                return Err(EdgeImpulseError::InvalidOperation(
-                    format!("Unknown threshold type for block {}: {}", id, unknown)
+                self.debug_log(&format!(
+                    "Unknown threshold type for block {}: {}",
+                    id, unknown
                 ));
+                return Err(EdgeImpulseError::InvalidOperation(format!(
+                    "Unknown threshold type for block {}: {}",
+                    id, unknown
+                )));
             }
         }
 

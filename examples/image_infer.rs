@@ -204,7 +204,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
 
                 match model.set_threshold(new_threshold) {
-                    Ok(()) => println!("Successfully set object detection threshold for block ID {} to {}", id, threshold),
+                    Ok(()) => println!(
+                        "Successfully set object detection threshold for block ID {} to {}",
+                        id, threshold
+                    ),
                     Err(e) => println!("Failed to set threshold for block ID {}: {}", id, e),
                 }
             }

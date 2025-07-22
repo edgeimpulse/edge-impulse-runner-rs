@@ -544,7 +544,7 @@ async fn initialize_model(
         );
     }
 
-        // Apply object detection threshold if provided
+    // Apply object detection threshold if provided
     if let Some(threshold_value) = threshold {
         println!("Setting object detection threshold to {}", threshold_value);
 
@@ -552,7 +552,8 @@ async fn initialize_model(
         let model_params_temp = model_instance.parameters()?;
 
         // Collect object detection thresholds to avoid borrowing issues
-        let object_detection_thresholds: Vec<_> = model_params_temp.thresholds
+        let object_detection_thresholds: Vec<_> = model_params_temp
+            .thresholds
             .iter()
             .filter_map(|t| {
                 if let edge_impulse_runner::types::ModelThreshold::ObjectDetection { id, .. } = t {
@@ -571,7 +572,10 @@ async fn initialize_model(
             };
 
             match model_instance.set_threshold(new_threshold) {
-                Ok(()) => println!("Successfully set object detection threshold for block ID {} to {}", block_id, threshold_value),
+                Ok(()) => println!(
+                    "Successfully set object detection threshold for block ID {} to {}",
+                    block_id, threshold_value
+                ),
                 Err(e) => println!("Failed to set threshold for block ID {}: {}", block_id, e),
             }
         }
