@@ -425,4 +425,9 @@ impl InferenceBackend for FfiBackend {
 
         Ok(())
     }
+
+    #[cfg(feature = "eim")]
+    fn path(&self) -> Option<&std::path::Path> {
+        None // FFI mode doesn't use a model file
+    }
 }

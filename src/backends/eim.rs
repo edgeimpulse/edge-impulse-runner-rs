@@ -414,4 +414,8 @@ impl InferenceBackend for EimBackend {
 
         Ok(())
     }
+
+    fn path(&self) -> Option<&std::path::Path> {
+        Some(&self.path)
+    }
 }

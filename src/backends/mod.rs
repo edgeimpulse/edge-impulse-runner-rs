@@ -71,6 +71,13 @@ pub trait InferenceBackend: Send + Sync {
         &mut self,
         threshold: crate::types::ModelThreshold,
     ) -> Result<(), EdgeImpulseError>;
+
+    /// Get the path to the model file (EIM mode only)
+    ///
+    /// Returns `Some(path)` if the model was loaded from a file in EIM mode,
+    /// or `None` if using FFI mode or if the path is not available.
+    #[cfg(feature = "eim")]
+    fn path(&self) -> Option<&std::path::Path>;
 }
 
 #[cfg(feature = "eim")]
