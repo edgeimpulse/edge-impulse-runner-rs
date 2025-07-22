@@ -145,6 +145,15 @@ impl EdgeImpulseModel {
     ) -> Result<(), crate::error::EdgeImpulseError> {
         self.backend.set_threshold(threshold)
     }
+
+    /// Get the path to the model file (EIM mode only)
+    ///
+    /// Returns `Some(path)` if the model was loaded from a file in EIM mode,
+    /// or `None` if using FFI mode or if the path is not available.
+    #[cfg(feature = "eim")]
+    pub fn path(&self) -> Option<&std::path::Path> {
+        self.backend.path()
+    }
 }
 
 impl std::fmt::Debug for EdgeImpulseModel {
