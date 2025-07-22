@@ -310,11 +310,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-**Supported Threshold Types:**
-- **Object Detection**: Set minimum confidence score for detected objects
-- **Anomaly Detection**: Set minimum anomaly score for GMM-based anomaly detection
-- **Object Tracking**: Set tracking parameters including threshold, grace period, and max observations
-
 #### FFI Mode with Debug
 ```rust
 let mut model = EdgeImpulseModel::new_with_debug(true)?;
