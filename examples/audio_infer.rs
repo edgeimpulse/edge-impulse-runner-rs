@@ -40,6 +40,10 @@ struct AudioInferParams {
     /// Use EIM mode (legacy, not recommended)
     #[clap(long)]
     eim: bool,
+
+    /// Set object detection threshold (0.0 to 1.0)
+    #[clap(long)]
+    threshold: Option<f32>,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -138,6 +142,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err("No backend available. Enable either 'ffi' or 'eim' feature.".into());
         }
     };
+
+            // Apply threshold if provided
+    if let Some(threshold) = params.threshold {
+        println!("Setting object detection threshold to {}", threshold);
+
+        // Get model parameters to find object detection thresholds
+        let model_params = model.parameters()?;
+
+        // Collect object detection thresholds to avoid borrowing issues
+        let object_detection_thresholds: Vec<_> = model_params.thresholds
+            .iter()
+            .filter_map(|t| {
+                if let edge_impulse_runner::types::ModelThreshold::ObjectDetection { id, .. } = t {
+                    Some(*id)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Apply the new threshold to each object detection block
+        for block_id in object_detection_thresholds {
+            let new_threshold = edge_impulse_runner::types::ModelThreshold::ObjectDetection {
+                id: block_id,
+                min_score: threshold,
+            };
+
+            match model.set_threshold(new_threshold) {
+                Ok(()) => println!("Successfully set object detection threshold for block ID {} to {}", block_id, threshold),
+                Err(e) => println!("Failed to set threshold for block ID {}: {}", block_id, e),
+            }
+        }
+    }
 
     let audio_path = PathBuf::from(&params.audio);
 

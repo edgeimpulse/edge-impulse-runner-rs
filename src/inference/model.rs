@@ -137,6 +137,11 @@ impl EdgeImpulseModel {
         self.backend
             .normalize_visual_anomaly(anomaly, max, mean, regions)
     }
+
+    /// Set a threshold for a specific model block
+    pub fn set_threshold(&mut self, threshold: crate::types::ModelThreshold) -> Result<(), crate::error::EdgeImpulseError> {
+        self.backend.set_threshold(threshold)
+    }
 }
 
 impl std::fmt::Debug for EdgeImpulseModel {

@@ -272,6 +272,65 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+#### Setting Model Thresholds
+
+You can dynamically set thresholds for different model types at runtime. This functionality is supported in both EIM and FFI backends:
+
+```rust
+use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
+use edge_impulse_runner::types::ModelThreshold;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut model = EdgeImpulseModel::new()?;
+
+    // Set object detection threshold
+    let obj_threshold = ModelThreshold::ObjectDetection {
+        id: 0,  // Block ID
+        min_score: 0.3,  // Minimum confidence score
+    };
+    model.set_threshold(obj_threshold)?;
+
+    // Set anomaly detection threshold
+    let anomaly_threshold = ModelThreshold::AnomalyGMM {
+        id: 1,  // Block ID
+        min_anomaly_score: 0.4,  // Minimum anomaly score
+    };
+    model.set_threshold(anomaly_threshold)?;
+
+    // Set object tracking threshold
+    let tracking_threshold = ModelThreshold::ObjectTracking {
+        id: 2,  // Block ID
+        keep_grace: 5,  // Grace period
+        max_observations: 10,  // Max observations
+        threshold: 0.7,  // Tracking threshold
+    };
+    model.set_threshold(tracking_threshold)?;
+
+    Ok(())
+}
+```
+
+**Supported Threshold Types:**
+- **Object Detection**: Set minimum confidence score for detected objects
+- **Anomaly Detection**: Set minimum anomaly score for GMM-based anomaly detection
+- **Object Tracking**: Set tracking parameters including threshold, grace period, and max observations
+
+**Backend Support:**
+- **EIM Backend**: Full support for all threshold types
+- **FFI Backend**: Full support for all threshold types (requires Edge Impulse C++ SDK)
+
+**API Options:**
+- **High-level API**: Use `model.set_threshold()` for convenient threshold setting
+- **Direct FFI API**: Use `edge_impulse_runner::ffi::set_*_threshold()` functions for direct control
+
+```rust
+// High-level API
+model.set_threshold(ModelThreshold::ObjectDetection { id: 0, min_score: 0.3 })?;
+
+// Direct FFI API
+edge_impulse_runner::ffi::set_object_detection_threshold(0, 0.3)?;
+```
+
 #### FFI Mode with Debug
 ```rust
 let mut model = EdgeImpulseModel::new_with_debug(true)?;

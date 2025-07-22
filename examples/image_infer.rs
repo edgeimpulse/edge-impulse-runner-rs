@@ -38,6 +38,10 @@ struct Args {
     /// Use EIM mode (legacy, not recommended)
     #[arg(long, default_value_t = false)]
     eim: bool,
+
+    /// Set object detection threshold (0.0 to 1.0)
+    #[arg(long)]
+    threshold: Option<f32>,
 }
 
 fn process_image(
@@ -186,6 +190,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get model parameters
     let model_params = model.parameters()?.clone();
+
+    // Apply threshold if provided
+    if let Some(threshold) = args.threshold {
+        println!("Setting object detection threshold to {}", threshold);
+
+        // Find object detection thresholds and apply the new threshold
+        for threshold_config in &model_params.thresholds {
+            if let ModelThreshold::ObjectDetection { id, .. } = threshold_config {
+                let new_threshold = ModelThreshold::ObjectDetection {
+                    id: *id,
+                    min_score: threshold,
+                };
+
+                match model.set_threshold(new_threshold) {
+                    Ok(()) => println!("Successfully set object detection threshold for block ID {} to {}", id, threshold),
+                    Err(e) => println!("Failed to set threshold for block ID {}: {}", id, e),
+                }
+            }
+        }
+    }
 
     // Get the min_anomaly_score threshold
     let min_anomaly_score = model_params
