@@ -35,8 +35,6 @@ struct Args {
     #[arg(short, long, default_value_t = false)]
     debug: bool,
 
-
-
     /// Set object detection threshold (0.0 to 1.0)
     #[arg(long)]
     threshold: Option<f32>,

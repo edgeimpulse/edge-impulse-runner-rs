@@ -36,8 +36,6 @@ struct AudioInferParams {
     /// Enable debug output
     #[clap(short, long)]
     debug: bool,
-
-
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -119,8 +117,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err("No backend available. Enable either 'ffi' or 'eim' feature.".into());
         }
     };
-
-
 
     let audio_path = PathBuf::from(&params.audio);
 

@@ -161,8 +161,6 @@ struct VideoInferParams {
     #[clap(long)]
     threshold: Option<f32>,
 
-
-
     /// Enable performance monitoring
     #[clap(long)]
     perf: bool,
@@ -594,7 +592,6 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
         params.debug,
         params.thresholds.as_deref(),
         params.threshold,
-
     )
     .await?;
 
