@@ -92,6 +92,14 @@ impl FfiBackend {
             }
         }
 
+        let input_features_count = if metadata.sensor == 1 {
+            // For audio models (microphone), use input features count (after DSP processing)
+            metadata.input_features_count as u32
+        } else {
+            // For other models, use width * height
+            (metadata.input_width * metadata.input_height) as u32
+        };
+
         Ok(ModelParameters {
             axis_count: 1, // Default for most models
             frequency: metadata.frequency as f32,
@@ -103,13 +111,7 @@ impl FfiBackend {
             image_input_width: metadata.input_width as u32,
             image_resize_mode: "fit".to_string(), // Default resize mode
             inferencing_engine: metadata.inferencing_engine as u32,
-            input_features_count: if metadata.sensor == 1 {
-                // For audio models (microphone), use raw sample count
-                metadata.raw_sample_count as u32
-            } else {
-                // For other models, use width * height
-                (metadata.input_width * metadata.input_height) as u32
-            },
+            input_features_count,
             interval_ms: metadata.interval_ms as f32,
             label_count: metadata.label_count as u32,
             labels,

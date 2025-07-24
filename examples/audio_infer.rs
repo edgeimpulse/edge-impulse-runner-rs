@@ -129,21 +129,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
 
     println!("Read {} samples from audio file", samples.len());
-    println!("Model expects {} samples", model.input_size()?);
+
+    // For audio models, we need to get the raw sample count from metadata
+    let metadata = ModelMetadata::get();
+    let required_samples = metadata.raw_sample_count;
+    println!("Model expects {} raw audio samples", required_samples);
 
     // Ensure we have enough samples
-    if samples.len() < model.input_size()? {
+    if samples.len() < required_samples {
         return Err(format!(
             "Audio file too short. Got {} samples, need {}",
             samples.len(),
-            model.input_size()?
+            required_samples
         )
         .into());
     }
 
-    // Take exactly the number of samples we need
-    let samples = samples[..model.input_size()?].to_vec();
-    println!("Using {} samples for classification", samples.len());
+    // Take exactly the number of raw samples we need
+    let samples = samples[..required_samples].to_vec();
+    println!(
+        "Using {} raw audio samples for classification",
+        samples.len()
+    );
 
     // Run inference
     let result = model.infer(samples, Some(params.debug))?;
