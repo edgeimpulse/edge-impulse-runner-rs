@@ -856,7 +856,7 @@ impl ModelMetadata {
     pub fn interval_ms() -> usize {
         #[cfg(feature = "ffi")]
         {
-            edge_impulse_ffi_rs::model_metadata::EI_CLASSIFIER_INTERVAL_MS
+            edge_impulse_ffi_rs::model_metadata::EI_CLASSIFIER_INTERVAL_MS as usize
         }
         #[cfg(not(feature = "ffi"))]
         {
