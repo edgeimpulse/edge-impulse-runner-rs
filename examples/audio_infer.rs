@@ -131,9 +131,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Read {} samples from audio file", samples.len());
 
     // For audio models, we need to get the raw sample count from metadata
-    let metadata = ModelMetadata::get();
-    let required_samples = metadata.raw_sample_count;
-    println!("Model expects {} raw audio samples", required_samples);
+    #[cfg(feature = "ffi")]
+    let required_samples = {
+        let metadata = ModelMetadata::get();
+        let count = metadata.raw_sample_count;
+        println!("Model expects {} raw audio samples", count);
+        count
+    };
+
+    #[cfg(not(feature = "ffi"))]
+    let required_samples = {
+        let count = model.input_size()?;
+        println!("Model expects {} samples", count);
+        count
+    };
 
     // Ensure we have enough samples
     if samples.len() < required_samples {
