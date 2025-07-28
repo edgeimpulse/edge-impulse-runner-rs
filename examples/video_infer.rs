@@ -713,11 +713,12 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
                                         }
                                     } else {
                                         // Check if 5 seconds have passed since last notification
-                                        if let Ok(mut last) = last_no_detection_clone.lock()
-                                            && last.elapsed() >= Duration::from_secs(5) {
+                                        if let Ok(mut last) = last_no_detection_clone.lock() {
+                                            if last.elapsed() >= Duration::from_secs(5) {
                                                 println!("No objects detected");
                                                 *last = Instant::now();
                                             }
+                                        }
                                     }
 
                                     if !classification.is_empty() {

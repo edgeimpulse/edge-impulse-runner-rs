@@ -5,11 +5,7 @@
 //! - Running machine learning models on Linux and macOS
 //! - Uploading training, testing and anomaly data to Edge Impulse projects
 //!
-//! > **⚠️ Note: This crate requires the Rust nightly toolchain due to transitive dependencies.**
-//! >
-//! > To build and run, you must:
-//! > 1. Install nightly: `rustup install nightly`
-//! > 2. Set nightly for this project: `rustup override set nightly`
+
 //!
 //! ## Overview
 //!
