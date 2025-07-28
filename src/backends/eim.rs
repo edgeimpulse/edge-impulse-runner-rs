@@ -7,7 +7,7 @@ use super::{BackendConfig, InferenceBackend};
 use crate::error::EdgeImpulseError;
 use crate::inference::messages::InferenceResponse;
 use crate::types::{ModelParameters, SensorType, VisualAnomalyResult};
-use rand::{Rng, thread_rng};
+use rand::{thread_rng, Rng};
 // Removed unused import
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
@@ -15,7 +15,7 @@ use std::path::Path;
 use std::process::Child;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
-use tempfile::{TempDir, tempdir};
+use tempfile::{tempdir, TempDir};
 
 use crate::inference::messages::{ClassifyMessage, HelloMessage, InferenceResult, ModelInfo};
 
@@ -387,21 +387,20 @@ impl InferenceBackend for EimBackend {
             EdgeImpulseError::ExecutionError(format!("Failed to read set_threshold response: {e}"))
         })?;
 
-        let response: crate::inference::messages::SetThresholdResponse = match serde_json::from_str(
-            &response_json,
-        ) {
-            Ok(r) => r,
-            Err(e) => {
-                eprintln!(
+        let response: crate::inference::messages::SetThresholdResponse =
+            match serde_json::from_str(&response_json) {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!(
                     "[EIM backend] Failed to parse set_threshold response: {}\nRaw response: {}",
                     e,
                     response_json.trim()
                 );
-                return Err(EdgeImpulseError::InvalidOperation(format!(
-                    "Failed to parse set_threshold response: {e}"
-                )));
-            }
-        };
+                    return Err(EdgeImpulseError::InvalidOperation(format!(
+                        "Failed to parse set_threshold response: {e}"
+                    )));
+                }
+            };
 
         if !response.success {
             return Err(EdgeImpulseError::InvalidOperation(
