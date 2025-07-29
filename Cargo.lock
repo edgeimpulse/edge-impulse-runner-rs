@@ -591,7 +591,7 @@ dependencies = [
 [[package]]
 name = "edge-impulse-ffi-rs"
 version = "0.1.0"
-source = "git+https://github.com/edgeimpulse/edge-impulse-ffi-rs.git?rev=62cb529#62cb52925c09c18e094e30b83c50e748783ed2c5"
+source = "git+https://github.com/edgeimpulse/edge-impulse-ffi-rs.git?rev=47f553b#47f553b27e55992e43c324315a1951eef58e85e3"
 dependencies = [
  "bindgen",
  "cc",
