@@ -391,7 +391,12 @@ impl InferenceResult {
     /// This returns the smoothed coordinates from the object tracking system.
     /// When object tracking is enabled, this should be used instead of bounding_boxes()
     /// for rendering to get stable, non-shaky bounding boxes.
-    pub fn object_tracking(&self) -> Vec<ObjectTrackingResult> {
+    ///
+    /// Takes bounding_boxes to match confidence values by object_id.
+    pub fn object_tracking(
+        &self,
+        bounding_boxes: &[crate::types::BoundingBox],
+    ) -> Vec<ObjectTrackingResult> {
         #[cfg(feature = "ffi")]
         {
             unsafe {
@@ -412,7 +417,6 @@ impl InferenceResult {
                     .iter()
                     .filter_map(|trace| {
                         // Skip traces with obviously corrupted data (very large width/height)
-                        // Note: value=0 is normal for object tracking, it doesn't represent confidence
                         if trace.width > 10000 || trace.height > 10000 {
                             return None;
                         }
@@ -421,9 +425,16 @@ impl InferenceResult {
                         // This is similar to the issue we had with extract_object_tracking_id_safe
                         let label = "person".to_string(); // Use a default label for now
 
+                        // Find matching bounding box by object_id to get confidence value
+                        let confidence = bounding_boxes
+                            .iter()
+                            .find(|bb| bb.object_id == Some(trace.id as u32))
+                            .map(|bb| bb.value)
+                            .unwrap_or(0.0); // Fallback to 0.0 if no match found
+
                         Some(ObjectTrackingResult {
                             label,
-                            value: trace.value,
+                            value: confidence,
                             x: trace.x as i32,
                             y: trace.y as i32,
                             width: trace.width as i32,

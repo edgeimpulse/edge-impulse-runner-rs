@@ -253,7 +253,7 @@ impl InferenceBackend for FfiBackend {
             }
         } else if self.parameters.model_type == "object-detection" {
             // Object detection model
-            let bounding_boxes = result
+            let bounding_boxes: Vec<BoundingBox> = result
                 .bounding_boxes()
                 .into_iter()
                 .map(|bb| BoundingBox {
@@ -268,7 +268,7 @@ impl InferenceBackend for FfiBackend {
                 .collect();
 
             // Get object tracking results if available
-            let object_tracking = result.object_tracking();
+            let object_tracking = result.object_tracking(&bounding_boxes);
 
             crate::inference::messages::InferenceResult::ObjectDetection {
                 bounding_boxes,
