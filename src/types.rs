@@ -202,6 +202,28 @@ pub struct BoundingBox {
     pub object_id: Option<u32>,
 }
 
+/// Represents a tracked object with smoothed coordinates from object tracking.
+///
+/// This is separate from BoundingBox and contains the smoothed coordinates
+/// provided by the object tracking system when enabled.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ObjectTrackingResult {
+    /// Height of the bounding box in pixels
+    pub height: i32,
+    /// Classification label for the tracked object
+    pub label: String,
+    /// Object tracking ID
+    pub object_id: u32,
+    /// Confidence score for the tracking (typically 1.0 for tracked objects)
+    pub value: f32,
+    /// Width of the bounding box in pixels
+    pub width: i32,
+    /// X-coordinate of the top-left corner
+    pub x: i32,
+    /// Y-coordinate of the top-left corner
+    pub y: i32,
+}
+
 /// Represents object tracking trace data extracted from the C++ SDK
 #[derive(Debug, Clone)]
 pub struct ObjectTrackingTrace {

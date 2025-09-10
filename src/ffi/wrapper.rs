@@ -6,6 +6,41 @@
 use std::error::Error;
 use std::fmt;
 
+use crate::types::ObjectTrackingResult;
+
+#[derive(Debug, Clone)]
+pub struct ClassificationResult {
+    pub label: String,
+    pub value: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct BoundingBox {
+    pub label: String,
+    pub value: f32,
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+    /// Object tracking ID (only present when object tracking is enabled)
+    pub object_id: Option<u32>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimingResult {
+    pub dsp: i32,
+    pub classification: i32,
+    pub anomaly: i32,
+}
+
+/// Visual anomaly detection result
+#[derive(Debug, Clone)]
+pub struct VisualAnomalyResult {
+    pub mean_value: f32,
+    pub max_value: f32,
+    pub grid_cells: Vec<BoundingBox>,
+}
+
 impl fmt::Display for ClassificationResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}: {:.4}", self.label, self.value)
@@ -27,6 +62,16 @@ impl fmt::Display for BoundingBox {
                 self.label, self.value, self.x, self.y, self.width, self.height
             )
         }
+    }
+}
+
+impl fmt::Display for ObjectTrackingResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}: {:.4} (x={}, y={}, w={}, h={}, id={})",
+            self.label, self.value, self.x, self.y, self.width, self.height, self.object_id
+        )
     }
 }
 
@@ -324,11 +369,69 @@ impl InferenceResult {
                         Some(BoundingBox {
                             label,
                             value: bb.value,
-                            x: bb.x,
-                            y: bb.y,
-                            width: bb.width,
-                            height: bb.height,
+                            x: bb.x as i32,
+                            y: bb.y as i32,
+                            width: bb.width as i32,
+                            height: bb.height as i32,
                             object_id,
+                        })
+                    })
+                    .collect()
+            }
+        }
+
+        #[cfg(not(feature = "ffi"))]
+        {
+            vec![]
+        }
+    }
+
+    /// Get object tracking results as safe Rust structs
+    ///
+    /// This returns the smoothed coordinates from the object tracking system.
+    /// When object tracking is enabled, this should be used instead of bounding_boxes()
+    /// for rendering to get stable, non-shaky bounding boxes.
+    pub fn object_tracking(&self) -> Vec<ObjectTrackingResult> {
+        #[cfg(feature = "ffi")]
+        {
+            unsafe {
+                let result = &*self.result;
+                let tracking_output = &result.postprocessed_output.object_tracking_output;
+
+                // If no object tracking data, return empty vector
+                if tracking_output.open_traces_count == 0 || tracking_output.open_traces.is_null() {
+                    return vec![];
+                }
+
+                let traces = std::slice::from_raw_parts(
+                    tracking_output.open_traces,
+                    tracking_output.open_traces_count as usize,
+                );
+
+                traces
+                    .iter()
+                    .filter_map(|trace| {
+                        // Skip traces with invalid or zero values
+                        if trace.value == 0.0 {
+                            return None;
+                        }
+
+                        let label = if !trace.label.is_null() {
+                            std::ffi::CStr::from_ptr(trace.label)
+                                .to_string_lossy()
+                                .into_owned()
+                        } else {
+                            String::new()
+                        };
+
+                        Some(ObjectTrackingResult {
+                            label,
+                            value: trace.value,
+                            x: trace.x as i32,
+                            y: trace.y as i32,
+                            width: trace.width as i32,
+                            height: trace.height as i32,
+                            object_id: trace.id as u32,
                         })
                     })
                     .collect()
@@ -376,7 +479,7 @@ impl InferenceResult {
                             if cell.value == 0.0 {
                                 return None;
                             }
-                            let label = if !cell.label.is_null() {
+                            let _label = if !cell.label.is_null() {
                                 std::ffi::CStr::from_ptr(cell.label)
                                     .to_string_lossy()
                                     .into_owned()
@@ -384,12 +487,12 @@ impl InferenceResult {
                                 String::new()
                             };
                             Some(BoundingBox {
-                                label,
+                                label: _label,
                                 value: cell.value,
-                                x: cell.x,
-                                y: cell.y,
-                                width: cell.width,
-                                height: cell.height,
+                                x: cell.x as i32,
+                                y: cell.y as i32,
+                                width: cell.width as i32,
+                                height: cell.height as i32,
                                 object_id: None, // Visual anomaly doesn't have object tracking
                             })
                         })
@@ -649,51 +752,6 @@ pub struct ModelMetadataInfo {
     pub raw_sample_count: usize,
     pub raw_samples_per_frame: usize,
     pub input_features_count: usize,
-}
-
-#[derive(Debug, Clone)]
-pub struct ClassificationResult {
-    pub label: String,
-    pub value: f32,
-}
-
-#[derive(Debug, Clone)]
-pub struct BoundingBox {
-    pub label: String,
-    pub value: f32,
-    pub x: u32,
-    pub y: u32,
-    pub width: u32,
-    pub height: u32,
-    /// Object tracking ID (only present when object tracking is enabled)
-    pub object_id: Option<u32>,
-}
-
-#[derive(Debug, Clone)]
-pub struct TimingResult {
-    pub dsp: i32,
-    pub classification: i32,
-    pub anomaly: i32,
-}
-
-/// Visual anomaly detection result
-#[derive(Debug, Clone)]
-pub struct VisualAnomalyResult {
-    pub mean_value: f32,
-    pub max_value: f32,
-    pub grid_cells: Vec<BoundingBox>,
-}
-
-impl fmt::Display for VisualAnomalyResult {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Visual Anomaly: mean={:.4}, max={:.4}, grid_cells={}",
-            self.mean_value,
-            self.max_value,
-            self.grid_cells.len()
-        )
-    }
 }
 
 impl fmt::Display for ModelMetadataInfo {
@@ -1139,8 +1197,8 @@ impl InferenceResult {
     #[cfg(feature = "ffi")]
     fn extract_object_tracking_id_safe(
         &self,
-        bb: &edge_impulse_ffi_rs::bindings::ei_impulse_result_bounding_box_t,
-        label: &str,
+        _bb: &edge_impulse_ffi_rs::bindings::ei_impulse_result_bounding_box_t,
+        _label: &str,
     ) -> Option<u32> {
         unsafe {
             let result = &*self.result;
