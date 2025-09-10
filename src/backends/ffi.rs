@@ -229,6 +229,7 @@ impl InferenceBackend for FfiBackend {
                         y: bb.y as i32,
                         width: bb.width as i32,
                         height: bb.height as i32,
+                        object_id: bb.object_id, // Pass through object_id from FFI
                     })
                     .collect();
 
@@ -262,6 +263,7 @@ impl InferenceBackend for FfiBackend {
                     y: bb.y as i32,
                     width: bb.width as i32,
                     height: bb.height as i32,
+                    object_id: bb.object_id, // Pass through object_id from FFI
                 })
                 .collect();
 

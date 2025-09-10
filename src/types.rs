@@ -197,6 +197,26 @@ pub struct BoundingBox {
     pub x: i32,
     /// Y-coordinate of the top-left corner
     pub y: i32,
+    /// Object tracking ID (only present when object tracking is enabled)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub object_id: Option<u32>,
+}
+
+/// Represents object tracking trace data extracted from the C++ SDK
+#[derive(Debug, Clone)]
+pub struct ObjectTrackingTrace {
+    /// Unique identifier for the tracked object
+    pub id: i32,
+    /// Label/class of the tracked object
+    pub label: String,
+    /// X coordinate of the bounding box
+    pub x: u32,
+    /// Y coordinate of the bounding box
+    pub y: u32,
+    /// Width of the bounding box
+    pub width: u32,
+    /// Height of the bounding box
+    pub height: u32,
 }
 
 /// Represents the normalized results of visual anomaly detection
