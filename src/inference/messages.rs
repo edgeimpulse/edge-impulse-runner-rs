@@ -78,6 +78,9 @@ pub enum InferenceResult {
     ObjectDetection {
         /// Vector of detected objects with their bounding boxes
         bounding_boxes: Vec<BoundingBox>,
+        /// Vector of tracked objects with smoothed coordinates (when object tracking is enabled)
+        #[serde(default)]
+        object_tracking: Vec<ObjectTrackingResult>,
         /// Optional classification results for the entire image
         #[serde(default)]
         classification: HashMap<String, f32>,
@@ -121,6 +124,7 @@ impl fmt::Display for InferenceResponse {
             }
             InferenceResult::ObjectDetection {
                 bounding_boxes,
+                object_tracking,
                 classification,
             } => {
                 if !classification.is_empty() {
@@ -130,18 +134,39 @@ impl fmt::Display for InferenceResponse {
                     }
                     writeln!(f)?;
                 }
-                write!(f, "Detected objects: ")?;
-                for bbox in bounding_boxes {
-                    write!(
-                        f,
-                        "{}({:.2}%) at ({},{},{},{}) ",
-                        bbox.label,
-                        bbox.value * 100.0,
-                        bbox.x,
-                        bbox.y,
-                        bbox.width,
-                        bbox.height
-                    )?;
+                if !bounding_boxes.is_empty() {
+                    write!(f, "Detected objects: ")?;
+                    for bbox in bounding_boxes {
+                        write!(
+                            f,
+                            "{}({:.2}%) at ({},{},{},{}) ",
+                            bbox.label,
+                            bbox.value * 100.0,
+                            bbox.x,
+                            bbox.y,
+                            bbox.width,
+                            bbox.height
+                        )?;
+                    }
+                    if !object_tracking.is_empty() {
+                        writeln!(f)?;
+                    }
+                }
+                if !object_tracking.is_empty() {
+                    write!(f, "Tracked objects: ")?;
+                    for tracked in object_tracking {
+                        write!(
+                            f,
+                            "{}({:.2}%) id={} at ({},{},{},{}) ",
+                            tracked.label,
+                            tracked.value * 100.0,
+                            tracked.object_id,
+                            tracked.x,
+                            tracked.y,
+                            tracked.width,
+                            tracked.height
+                        )?;
+                    }
                 }
                 Ok(())
             }

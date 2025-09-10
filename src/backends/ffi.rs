@@ -267,8 +267,12 @@ impl InferenceBackend for FfiBackend {
                 })
                 .collect();
 
+            // Get object tracking results if available
+            let object_tracking = result.object_tracking();
+
             crate::inference::messages::InferenceResult::ObjectDetection {
                 bounding_boxes,
+                object_tracking,
                 classification: std::collections::HashMap::new(), // Object detection doesn't have separate classification
             }
         } else {

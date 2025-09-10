@@ -704,10 +704,18 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
                                 }
                                 InferenceResult::ObjectDetection {
                                     bounding_boxes,
+                                    object_tracking,
                                     classification,
                                 } => {
-                                    if !bounding_boxes.is_empty() {
-                                        println!("Detected objects: {bounding_boxes:?}");
+                                    let has_detections = !bounding_boxes.is_empty() || !object_tracking.is_empty();
+
+                                    if has_detections {
+                                        if !bounding_boxes.is_empty() {
+                                            println!("Bounding boxes: {bounding_boxes:?}");
+                                        }
+                                        if !object_tracking.is_empty() {
+                                            println!("Object tracking: {object_tracking:?}");
+                                        }
                                         if let Ok(mut last) = last_no_detection_clone.lock() {
                                             *last = Instant::now();
                                         }
