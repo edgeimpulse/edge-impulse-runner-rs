@@ -370,7 +370,8 @@ impl InferenceResult {
                         result.visual_ad_grid_cells,
                         result.visual_ad_count as usize,
                     );
-                    cells.iter()
+                    cells
+                        .iter()
                         .filter_map(|cell| {
                             if cell.value == 0.0 {
                                 return None;
