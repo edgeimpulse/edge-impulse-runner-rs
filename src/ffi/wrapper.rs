@@ -448,6 +448,7 @@ impl InferenceResult {
 
         #[cfg(not(feature = "ffi"))]
         {
+            let _ = bounding_boxes; // Suppress unused variable warning
             vec![]
         }
     }
