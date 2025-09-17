@@ -294,6 +294,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         InferenceResult::ObjectDetection {
             bounding_boxes,
             classification,
+            object_tracking: _,
         } => {
             println!("Detected objects: {bounding_boxes:?}");
             if !classification.is_empty() {
