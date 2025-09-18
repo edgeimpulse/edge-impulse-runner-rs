@@ -401,26 +401,32 @@ impl InferenceResult {
         {
             unsafe {
                 let result = &*self.result;
-                let tracking_output = &result.postprocessed_output.object_tracking_output;
-
-                // If no object tracking data, return empty vector
-                if tracking_output.open_traces_count == 0 || tracking_output.open_traces.is_null() {
+                // Use FFI helpers to be safe when object tracking is disabled in the model
+                let count = edge_impulse_ffi_rs::bindings::ei_ffi_object_tracking_open_traces_count(result);
+                if count == 0 {
                     return vec![];
                 }
-
-                let traces = std::slice::from_raw_parts(
-                    tracking_output.open_traces,
-                    tracking_output.open_traces_count as usize,
-                );
-
-                traces
-                    .iter()
+                (0..count as usize)
                     .filter_map(|trace| {
-                        // Skip traces with obviously corrupted data (very large width/height)
-                        if trace.width > 10000 || trace.height > 10000 {
+                        let mut id: i32 = 0;
+                        let mut x: u32 = 0;
+                        let mut y: u32 = 0;
+                        let mut w: u32 = 0;
+                        let mut h: u32 = 0;
+                        let mut value: f32 = 0.0;
+                        let ok = edge_impulse_ffi_rs::bindings::ei_ffi_object_tracking_trace_at(
+                            result,
+                            trace as u32,
+                            &mut id,
+                            &mut x,
+                            &mut y,
+                            &mut w,
+                            &mut h,
+                            &mut value,
+                        );
+                        if ok == 0 || w > 10000 || h > 10000 {
                             return None;
                         }
-
                         // Skip accessing label pointer as it seems to be corrupted in the FFI
                         // This is similar to the issue we had with extract_object_tracking_id_safe
                         let label = "person".to_string(); // Use a default label for now
@@ -428,18 +434,18 @@ impl InferenceResult {
                         // Find matching bounding box by object_id to get confidence value
                         let confidence = bounding_boxes
                             .iter()
-                            .find(|bb| bb.object_id == Some(trace.id as u32))
+                            .find(|bb| bb.object_id == Some(id as u32))
                             .map(|bb| bb.value)
                             .unwrap_or(0.0); // Fallback to 0.0 if no match found
 
                         Some(ObjectTrackingResult {
                             label,
-                            value: confidence,
-                            x: trace.x as i32,
-                            y: trace.y as i32,
-                            width: trace.width as i32,
-                            height: trace.height as i32,
-                            object_id: trace.id as u32,
+                            value: confidence.max(value),
+                            x: x as i32,
+                            y: y as i32,
+                            width: w as i32,
+                            height: h as i32,
+                            object_id: id as u32,
                         })
                     })
                     .collect()
@@ -1211,26 +1217,28 @@ impl InferenceResult {
     ) -> Option<u32> {
         unsafe {
             let result = &*self.result;
-            let tracking_output = &result.postprocessed_output.object_tracking_output;
-
-            // If no object tracking data, return None
-            if tracking_output.open_traces_count == 0 || tracking_output.open_traces.is_null() {
+            // Use FFI helpers to be safe when object tracking is disabled in the model
+            let count = edge_impulse_ffi_rs::bindings::ei_ffi_object_tracking_open_traces_count(result);
+            if count == 0 {
                 return None;
             }
-
-            // For now, let's try a simpler approach - just use the trace ID directly
-            // without trying to match by label, since the label pointers seem to be invalid
-            let traces = std::slice::from_raw_parts(
-                tracking_output.open_traces,
-                tracking_output.open_traces_count as usize,
+            let mut id: i32 = 0;
+            let mut x: u32 = 0;
+            let mut y: u32 = 0;
+            let mut w: u32 = 0;
+            let mut h: u32 = 0;
+            let mut value: f32 = 0.0;
+            let ok = edge_impulse_ffi_rs::bindings::ei_ffi_object_tracking_trace_at(
+                result,
+                0,
+                &mut id,
+                &mut x,
+                &mut y,
+                &mut w,
+                &mut h,
+                &mut value,
             );
-
-            // Simple approach: just return the first trace ID for now
-            // This is a temporary solution until we can figure out why the label pointers are invalid
-            if !traces.is_empty() {
-                let first_trace = &traces[0];
-                return Some(first_trace.id as u32);
-            }
+            if ok != 0 { return Some(id as u32); }
 
             None
         }
