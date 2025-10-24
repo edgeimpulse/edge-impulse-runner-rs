@@ -52,6 +52,9 @@ core-graphics-types = "0.2.0"
 core-foundation = "0.9"
 objc = "0.2.7"
 
+[target.aarch64-unknown-linux-gnu]
+linker = "aarch64-linux-gnu-gcc"
+
 [dev-dependencies]
 clap = { version = "4.4", features = ["derive"] }
 env_logger = "0.11.6"
