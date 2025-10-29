@@ -1,4 +1,4 @@
-FROM rust:latest
+FROM rust:1.90.0-bookworm
 
 # Install cross-compilation tools and dependencies
 RUN dpkg --add-architecture arm64 && \
