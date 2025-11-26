@@ -13,10 +13,22 @@
 //!
 //! Usage:
 //!   # EIM mode (requires model file)
-//!   cargo run --example video_infer -- --model <path_to_model> [--debug]
+//!   cargo run --example video_infer -- --model <path_to_model> [--debug] [--device <index>]
 //!
 //!   # FFI mode (no model file needed)
-//!   cargo run --example video_infer --features ffi -- [--debug]
+//!   cargo run --example video_infer --features ffi -- [--debug] [--device <index>]
+//!
+//!   # List available devices
+//!   cargo run --example video_infer --features ffi -- --list-devices
+//!
+//!   # Select a device by index
+//!   cargo run --example video_infer --features ffi -- --device 1
+//!
+//!   # Select a device by name (partial match)
+//!   cargo run --example video_infer --features ffi -- --device "FaceTime"
+//!
+//!   # Skip interactive selection and use default device
+//!   cargo run --example video_infer --features ffi -- --no-interactive
 //!
 //! You may need to set the gstreamer plugins path:
 //! export GST_PLUGIN_PATH="/Library/Frameworks/GStreamer.framework/Versions/1.0/lib/gstreamer-1.0"
@@ -33,10 +45,11 @@ use edge_impulse_runner::types::ModelThreshold;
 use edge_impulse_runner::{EdgeImpulseModel, InferenceResult};
 use gst::prelude::*;
 use gstreamer as gst;
+use gstreamer::DeviceMonitor;
 use gstreamer_app as gst_app;
 use gstreamer_video as gst_video;
 use gstreamer_video::{self, VideoCapsBuilder, VideoInfo};
-// Removed unused import
+use inquire::Select;
 use std::error::Error;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -164,6 +177,20 @@ struct VideoInferParams {
     /// Enable performance monitoring
     #[clap(long)]
     perf: bool,
+
+    /// Camera device to use. Can be a device index (0, 1, 2...) or device name (partial match).
+    /// If not specified and multiple devices are available, an interactive selection will be shown.
+    /// Use --list-devices to see available devices without running inference.
+    #[clap(long)]
+    device: Option<String>,
+
+    /// List available video devices and exit
+    #[clap(long)]
+    list_devices: bool,
+
+    /// Skip interactive device selection and use default (index 0)
+    #[clap(long)]
+    no_interactive: bool,
 }
 
 // macOS specific run loop handling
@@ -251,8 +278,112 @@ where
     }
 }
 
+/// Structure to hold device information
+#[derive(Debug, Clone)]
+struct VideoDevice {
+    index: usize,
+    name: String,
+    device: gst::Device,
+}
+
+/// List all available video capture devices
+fn list_video_devices() -> Result<Vec<VideoDevice>, Box<dyn Error>> {
+    let monitor = DeviceMonitor::new();
+    monitor.add_filter(Some("Video/Source"), None);
+    monitor.start()?;
+
+    let devices = monitor.devices();
+    let mut video_devices = Vec::new();
+
+    for (index, device) in devices.iter().enumerate() {
+        let name = device.display_name().to_string();
+        video_devices.push(VideoDevice {
+            index,
+            name: if name.is_empty() {
+                format!("Device {}", index)
+            } else {
+                name
+            },
+            device: device.clone(),
+        });
+    }
+
+    monitor.stop();
+    Ok(video_devices)
+}
+
+/// Find a device by name (partial match) or index
+fn find_device(device_spec: &str) -> Result<Option<VideoDevice>, Box<dyn Error>> {
+    let devices = list_video_devices()?;
+
+    // Try to parse as index first
+    if let Ok(index) = device_spec.parse::<usize>() {
+        if let Some(device) = devices.get(index) {
+            return Ok(Some(device.clone()));
+        }
+    }
+
+    // Try to find by name (case-insensitive partial match)
+    let device_spec_lower = device_spec.to_lowercase();
+    for device in devices {
+        if device.name.to_lowercase().contains(&device_spec_lower) {
+            return Ok(Some(device));
+        }
+    }
+
+    Ok(None)
+}
+
+/// Interactively select a device from available devices
+fn select_device_interactive() -> Result<Option<VideoDevice>, Box<dyn Error>> {
+    let devices = list_video_devices()?;
+
+    if devices.is_empty() {
+        println!("No video devices found.");
+        return Ok(None);
+    }
+
+    if devices.len() == 1 {
+        println!("Found one device: {} (auto-selected)", devices[0].name);
+        return Ok(Some(devices[0].clone()));
+    }
+
+    // Create options for the select menu
+    let options: Vec<String> = devices
+        .iter()
+        .map(|d| format!("[{}] {}", d.index, d.name))
+        .collect();
+
+    let ans = Select::new("Select a video device:", options)
+        .with_help_message("Use arrow keys to navigate, Enter to select")
+        .prompt();
+
+    match ans {
+        Ok(selection) => {
+            // Extract index from selection string (format: "[0] Device Name")
+            if let Some(start) = selection.find('[') {
+                if let Some(end) = selection[start..].find(']') {
+                    if let Ok(index) = selection[start + 1..start + end].parse::<usize>() {
+                        if let Some(device) = devices.get(index) {
+                            return Ok(Some(device.clone()));
+                        }
+                    }
+                }
+            }
+            Ok(None)
+        }
+        Err(_) => {
+            println!("Device selection cancelled.");
+            Ok(None)
+        }
+    }
+}
+
 fn create_pipeline(
     params: &edge_impulse_runner::ModelParameters,
+    device_spec: Option<&str>,
+    allow_interactive: bool,
+    debug: bool,
 ) -> Result<gst::Pipeline, Box<dyn Error>> {
     println!(
         "Setting up pipeline for {}x{} input with {} channels",
@@ -261,9 +392,85 @@ fn create_pipeline(
 
     // Create pipeline elements
     let pipeline = gst::Pipeline::new();
-    let src = gst::ElementFactory::make("avfvideosrc")
-        .property("device-index", 0i32)
-        .build()?;
+    let mut src_builder = gst::ElementFactory::make("avfvideosrc");
+
+    // Determine which device index to use
+    let device_index = if let Some(spec) = device_spec {
+        // Device specified via command line
+        match find_device(spec) {
+            Ok(Some(device_info)) => {
+                println!(
+                    "Using camera device: {} (index: {})",
+                    device_info.name, device_info.index
+                );
+                device_info.index
+            }
+            Ok(None) => {
+                // Device not found, try parsing as index directly
+                if let Ok(index) = spec.parse::<usize>() {
+                    println!(
+                        "Using camera device index: {} (device enumeration unavailable)",
+                        index
+                    );
+                    index
+                } else {
+                    eprintln!("Warning: Device '{}' not found and not a valid index, falling back to device index 0", spec);
+                    0
+                }
+            }
+            Err(e) => {
+                // Device enumeration failed, try parsing as index
+                eprintln!(
+                    "Note: Could not enumerate devices ({}), trying device spec as index",
+                    e
+                );
+                if let Ok(index) = spec.parse::<usize>() {
+                    println!("Using camera device index: {}", index);
+                    index
+                } else {
+                    eprintln!("Warning: Device enumeration failed and '{}' is not a valid index, falling back to device index 0", spec);
+                    0
+                }
+            }
+        }
+    } else if allow_interactive {
+        // No device specified, try interactive selection
+        match select_device_interactive() {
+            Ok(Some(device)) => {
+                println!(
+                    "Selected camera device: {} (index: {})",
+                    device.name, device.index
+                );
+                device.index
+            }
+            Ok(None) => {
+                println!("No device selected, using default (index: 0)");
+                0
+            }
+            Err(e) => {
+                eprintln!(
+                    "Note: Interactive device selection failed ({}), using default (index: 0)",
+                    e
+                );
+                0
+            }
+        }
+    } else {
+        // No device specified and interactive disabled
+        println!("Using default camera device (index: 0)");
+        0
+    };
+
+    // Set the device index
+    // Note: DeviceMonitor and avfvideosrc may enumerate devices in different orders.
+    // If the selected device doesn't work, try different indices manually.
+    src_builder = src_builder.property("device-index", device_index as i32);
+
+    if debug {
+        println!("Setting avfvideosrc device-index to: {}", device_index);
+    }
+
+    let src = src_builder.build()?;
     let convert = gst::ElementFactory::make("videoconvert").build()?;
     let scale = gst::ElementFactory::make("videoscale").build()?;
     let tee = gst::ElementFactory::make("tee").build()?;
@@ -583,6 +790,30 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
     // Parse command line arguments
     let params = VideoInferParams::parse();
 
+    // Handle --list-devices option
+    if params.list_devices {
+        println!("Available video devices:");
+        println!("========================");
+        match list_video_devices() {
+            Ok(devices) => {
+                if devices.is_empty() {
+                    println!("No video devices found.");
+                } else {
+                    for device in devices {
+                        println!("  [{}] {}", device.index, device.name);
+                    }
+                    println!("\nUse --device <index> or --device \"<name>\" to select a device.");
+                }
+            }
+            Err(e) => {
+                eprintln!("Error listing devices: {}", e);
+                eprintln!("Note: Device enumeration may not work on all systems.");
+                eprintln!("You can still use --device <index> to select by index.");
+            }
+        }
+        return Ok(());
+    }
+
     // Initialize performance metrics
     let perf_metrics = Arc::new(Mutex::new(PerformanceMetrics::new()));
 
@@ -608,13 +839,18 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
     println!("Image format will be {input_width}x{input_height} with {channel_count} channels");
 
     // Create pipeline with the extracted parameters
-    let pipeline = create_pipeline(&edge_impulse_runner::ModelParameters {
-        image_input_width: input_width,
-        image_input_height: input_height,
-        image_channel_count: channel_count,
-        input_features_count: features_count,
-        ..Default::default() // Fill in other fields with defaults
-    })?;
+    let pipeline = create_pipeline(
+        &edge_impulse_runner::ModelParameters {
+            image_input_width: input_width,
+            image_input_height: input_height,
+            image_channel_count: channel_count,
+            input_features_count: features_count,
+            ..Default::default() // Fill in other fields with defaults
+        },
+        params.device.as_deref(),
+        !params.no_interactive,
+        params.debug,
+    )?;
 
     let sink = pipeline
         .by_name("appsink0")
@@ -631,10 +867,19 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
     let last_no_detection = Arc::new(Mutex::new(Instant::now()));
     let last_no_detection_clone = Arc::clone(&last_no_detection);
 
+    // Track if we've received frames
+    let frame_received_flag = Arc::new(Mutex::new(false));
+    let frame_received_flag_clone = Arc::clone(&frame_received_flag);
+
     // Process frames
     sink.set_callbacks(
         gst_app::AppSinkCallbacks::builder()
             .new_sample(move |appsink| {
+                // Mark that we've received at least one frame
+                if let Ok(mut flag) = frame_received_flag_clone.lock() {
+                    *flag = true;
+                }
+
                 let sample = appsink.pull_sample().map_err(|_| gst::FlowError::Eos)?;
                 let buffer = sample.buffer().ok_or(gst::FlowError::Error)?;
 
@@ -818,16 +1063,84 @@ async fn example_main() -> Result<(), Box<dyn Error>> {
     );
 
     // Start playing
+    // The ? operator will return an error if state change fails
     pipeline.set_state(gst::State::Playing)?;
+
     println!("Playing... (Ctrl+C to stop)");
+    println!("Waiting for video frames...");
 
     let bus = pipeline.bus().unwrap();
+    let start_time = Instant::now();
+
+    // Wait a bit to see if we get any frames or errors
+    for msg in bus.iter_timed(gst::ClockTime::from_seconds(3)) {
+        use gst::MessageView;
+        match msg.view() {
+            MessageView::Eos(..) => {
+                println!("End of stream");
+                break;
+            }
+            MessageView::Error(err) => {
+                eprintln!(
+                    "Error from {:?}: {} ({:?})",
+                    err.src().map(|s| s.path_string()),
+                    err.error(),
+                    err.debug()
+                );
+                break;
+            }
+            MessageView::Warning(warn) => {
+                // Only print warnings if debug is enabled
+                if params.debug {
+                    eprintln!(
+                        "Warning from {:?}: {} ({:?})",
+                        warn.src().map(|s| s.path_string()),
+                        warn.error(),
+                        warn.debug()
+                    );
+                }
+            }
+            MessageView::StateChanged(state) => {
+                if let Some(src) = state.src() {
+                    if src.name().as_str() == "avfvideosrc0" {
+                        let new_state = state.current();
+                        if new_state == gst::State::Playing {
+                            println!("Video source is now playing");
+                        }
+                    }
+                }
+            }
+            _ => (),
+        }
+    }
+
+    // Check if we received any frames
+    let frame_received = *frame_received_flag.lock().unwrap();
+    if !frame_received && start_time.elapsed() > Duration::from_secs(2) {
+        eprintln!("\nWarning: No video frames received after 2 seconds.");
+        eprintln!("This could mean:");
+        eprintln!("  1. The camera device index might be incorrect");
+        eprintln!("     (DeviceMonitor and avfvideosrc may enumerate devices differently)");
+        eprintln!("  2. The camera might be in use by another application");
+        eprintln!("  3. Camera permissions might not be granted");
+        eprintln!("  4. The device might not be accessible");
+        eprintln!("\nTry:");
+        eprintln!("  - Use --list-devices to see available devices");
+        eprintln!("  - Try different device indices: --device 0, --device 1, --device 2, etc.");
+        eprintln!("  - Check if another app is using the camera");
+        eprintln!("  - Grant camera permissions in System Settings");
+        eprintln!("  - Test with: gst-launch-1.0 avfvideosrc device-index=0 ! autovideosink");
+    } else if frame_received {
+        println!("Receiving video frames");
+    }
+
+    // Continue waiting for messages
     for msg in bus.iter_timed(gst::ClockTime::NONE) {
         use gst::MessageView;
         match msg.view() {
             MessageView::Eos(..) => break,
             MessageView::Error(err) => {
-                println!(
+                eprintln!(
                     "Error from {:?}: {} ({:?})",
                     err.src().map(|s| s.path_string()),
                     err.error(),
