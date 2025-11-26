@@ -428,16 +428,16 @@ impl InferenceResult {
                         if ok == 0 || w > 10000 || h > 10000 {
                             return None;
                         }
-                        // Skip accessing label pointer as it seems to be corrupted in the FFI
-                        // This is similar to the issue we had with extract_object_tracking_id_safe
-                        let label = "person".to_string(); // Use a default label for now
-
-                        // Find matching bounding box by object_id to get confidence value
-                        let confidence = bounding_boxes
+                        // Find matching bounding box by object_id to get label and confidence value
+                        let (label, confidence) = bounding_boxes
                             .iter()
                             .find(|bb| bb.object_id == Some(id as u32))
-                            .map(|bb| bb.value)
-                            .unwrap_or(0.0); // Fallback to 0.0 if no match found
+                            .map(|bb| (bb.label.clone(), bb.value))
+                            .unwrap_or_else(|| {
+                                // Fallback to a default label if no match found
+                                // This should rarely happen, but provides a safety net
+                                ("unknown".to_string(), 0.0)
+                            });
 
                         Some(ObjectTrackingResult {
                             label,
