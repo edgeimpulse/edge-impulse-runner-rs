@@ -622,7 +622,7 @@ checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 [[package]]
 name = "edge-impulse-ffi-rs"
 version = "0.1.0"
-source = "git+https://github.com/edgeimpulse/edge-impulse-ffi-rs.git?rev=7d8141f#7d8141f6b62d3e9b69fd3ce154d6c6964a9c5fb3"
+source = "git+https://github.com/edgeimpulse/edge-impulse-ffi-rs.git?rev=eb078d5#eb078d5c7e7dc3775869f2b9df25bbd4ec179622"
 dependencies = [
  "bindgen",
  "cc",
@@ -1658,7 +1658,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07033963ba89ebaf1584d767badaa2e8fcec21aedea6b8c0346d487d49c28667"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.53.2",
 ]
 
 [[package]]
