@@ -5,6 +5,7 @@
 
 use std::error::Error;
 use std::fmt;
+use std::sync::Mutex;
 
 use crate::types::ObjectTrackingResult;
 
@@ -571,6 +572,20 @@ impl Drop for InferenceResult {
     }
 }
 
+/// Global mutex to serialize access to the Edge Impulse C++ SDK.
+///
+/// The Edge Impulse C++ SDK uses process-global state internally:
+/// - `ei_default_impulse`: global impulse handle
+/// - `static_features_matrix`: static buffer in `process_impulse_continuous()`
+/// - `classifier_continuous_features_written`: static counter
+/// - TFLite interpreter instance (shared, not thread-safe)
+/// - Postprocessing state (object tracking, performance calibration)
+///
+/// Without this mutex, concurrent calls to `run_classifier()` from multiple
+/// threads (e.g., multiple GStreamer pipelines in the same process) will race
+/// on this shared state, causing corrupt inference results or crashes.
+static CLASSIFIER_LOCK: Mutex<()> = Mutex::new(());
+
 /// Main Edge Impulse classifier
 pub struct EdgeImpulseClassifier {
     #[cfg(feature = "ffi")]
@@ -601,6 +616,7 @@ impl EdgeImpulseClassifier {
     pub fn init(&mut self) -> EdgeImpulseResult<()> {
         #[cfg(feature = "ffi")]
         {
+            let _guard = CLASSIFIER_LOCK.lock().unwrap();
             unsafe { edge_impulse_ffi_rs::bindings::ei_ffi_run_classifier_init() };
             self.initialized = true;
             Ok(())
@@ -616,6 +632,7 @@ impl EdgeImpulseClassifier {
     pub fn deinit(&mut self) -> EdgeImpulseResult<()> {
         #[cfg(feature = "ffi")]
         {
+            let _guard = CLASSIFIER_LOCK.lock().unwrap();
             if self.initialized {
                 unsafe { edge_impulse_ffi_rs::bindings::ei_ffi_run_classifier_deinit() };
                 self.initialized = false;
@@ -630,6 +647,9 @@ impl EdgeImpulseClassifier {
     }
 
     /// Run classification on signal data
+    ///
+    /// This method acquires a global mutex to prevent concurrent access to
+    /// the Edge Impulse C++ SDK's shared global state.
     pub fn run_classifier(
         &self,
         _signal: &Signal,
@@ -640,6 +660,7 @@ impl EdgeImpulseClassifier {
             if !self.initialized {
                 return Err(EdgeImpulseError::Other);
             }
+            let _guard = CLASSIFIER_LOCK.lock().unwrap();
             let result = InferenceResult::new();
             let result_code = unsafe {
                 edge_impulse_ffi_rs::bindings::ei_ffi_run_classifier(
@@ -662,6 +683,9 @@ impl EdgeImpulseClassifier {
     }
 
     /// Run continuous classification on signal data
+    ///
+    /// This method acquires a global mutex to prevent concurrent access to
+    /// the Edge Impulse C++ SDK's shared global state.
     pub fn run_classifier_continuous(
         &self,
         _signal: &Signal,
@@ -673,6 +697,7 @@ impl EdgeImpulseClassifier {
             if !self.initialized {
                 return Err(EdgeImpulseError::Other);
             }
+            let _guard = CLASSIFIER_LOCK.lock().unwrap();
             let result = InferenceResult::new();
             let result_code = unsafe {
                 edge_impulse_ffi_rs::bindings::ei_ffi_run_classifier_continuous(
@@ -697,6 +722,9 @@ impl EdgeImpulseClassifier {
 
     /// Run inference on pre-processed features
     ///
+    /// This method acquires a global mutex to prevent concurrent access to
+    /// the Edge Impulse C++ SDK's shared global state.
+    ///
     /// # Safety
     /// This function is unsafe because it takes a raw pointer `fmatrix` that may be dereferenced.
     /// The caller must ensure the pointer is valid and points to valid memory.
@@ -712,6 +740,7 @@ impl EdgeImpulseClassifier {
             if !self.initialized {
                 return Err(EdgeImpulseError::Other);
             }
+            let _guard = CLASSIFIER_LOCK.lock().unwrap();
             let result = InferenceResult::new();
             let result_code = unsafe {
                 edge_impulse_ffi_rs::bindings::ei_ffi_run_inference(
