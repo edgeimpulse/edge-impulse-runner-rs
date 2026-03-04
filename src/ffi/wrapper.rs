@@ -584,6 +584,7 @@ impl Drop for InferenceResult {
 /// Without this mutex, concurrent calls to `run_classifier()` from multiple
 /// threads (e.g., multiple GStreamer pipelines in the same process) will race
 /// on this shared state, causing corrupt inference results or crashes.
+#[cfg(feature = "ffi")]
 static CLASSIFIER_LOCK: Mutex<()> = Mutex::new(());
 
 /// Main Edge Impulse classifier
