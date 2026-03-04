@@ -588,6 +588,14 @@ impl Drop for InferenceResult {
 #[cfg(feature = "ffi")]
 static CLASSIFIER_LOCK: Mutex<()> = Mutex::new(());
 
+/// Reference count for the global classifier state.
+/// The C++ SDK has a single global classifier — calling init/deinit multiple
+/// times causes issues (double-free on deinit). This counter ensures we only
+/// call init on the first instance and deinit when the last instance is dropped.
+#[cfg(feature = "ffi")]
+static CLASSIFIER_REF_COUNT: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+
 /// Main Edge Impulse classifier
 pub struct EdgeImpulseClassifier {
     #[cfg(feature = "ffi")]
@@ -619,7 +627,11 @@ impl EdgeImpulseClassifier {
         #[cfg(feature = "ffi")]
         {
             let _guard = CLASSIFIER_LOCK.lock().unwrap();
-            unsafe { edge_impulse_ffi_rs::bindings::ei_ffi_run_classifier_init() };
+            let prev = CLASSIFIER_REF_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if prev == 0 {
+                // First instance — actually initialize the C++ SDK
+                unsafe { edge_impulse_ffi_rs::bindings::ei_ffi_run_classifier_init() };
+            }
             self.initialized = true;
             Ok(())
         }
@@ -636,8 +648,12 @@ impl EdgeImpulseClassifier {
         {
             let _guard = CLASSIFIER_LOCK.lock().unwrap();
             if self.initialized {
-                unsafe { edge_impulse_ffi_rs::bindings::ei_ffi_run_classifier_deinit() };
                 self.initialized = false;
+                let prev = CLASSIFIER_REF_COUNT.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+                if prev == 1 {
+                    // Last instance — actually deinitialize the C++ SDK
+                    unsafe { edge_impulse_ffi_rs::bindings::ei_ffi_run_classifier_deinit() };
+                }
             }
             Ok(())
         }
