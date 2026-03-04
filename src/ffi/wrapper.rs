@@ -5,6 +5,7 @@
 
 use std::error::Error;
 use std::fmt;
+#[cfg(feature = "ffi")]
 use std::sync::Mutex;
 
 use crate::types::ObjectTrackingResult;
