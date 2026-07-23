@@ -1153,8 +1153,10 @@ impl ModelMetadata {
 
     /// Edge Impulse `EI_CLASSIFIER_RESIZE_MODE` for the compiled model.
     /// Ordering: 0 = none, 1 = fit-shortest, 2 = fit-longest, 3 = squash.
-    /// Without the `ffi` feature the model header is unavailable, so default to
-    /// 3 (squash), the historical runner behaviour.
+    /// The `ffi` feature is what actually surfaces the model geometry, so the
+    /// `not(ffi)` arm is a compile-only fallback — its sole consumer,
+    /// `backends::ffi`, is itself `ffi`-gated and never observes this value.
+    /// Default to 3 (squash) as a conservative, non-panicking placeholder.
     pub fn resize_mode() -> usize {
         #[cfg(feature = "ffi")]
         {
