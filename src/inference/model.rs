@@ -111,6 +111,22 @@ impl EdgeImpulseModel {
         self.backend.infer(features, debug)
     }
 
+    /// Run inference and return the raw freeform output tensors.
+    ///
+    /// For freeform-output impulses (e.g. CRNN/OCR recognizers) the raw model
+    /// output tensors are not surfaced through the normal [`InferenceResponse`].
+    /// This returns one `Vec<f32>` per output tensor; empty for models that
+    /// expose no freeform outputs. Returns
+    /// [`EdgeImpulseError::InvalidOperation`] on backends that do not support it
+    /// (e.g. EIM).
+    pub fn infer_freeform(
+        &mut self,
+        features: Vec<f32>,
+        debug: Option<bool>,
+    ) -> Result<Vec<Vec<f32>>, EdgeImpulseError> {
+        self.backend.infer_freeform(features, debug)
+    }
+
     /// Get model parameters
     pub fn parameters(&self) -> Result<&ModelParameters, EdgeImpulseError> {
         self.backend.parameters()

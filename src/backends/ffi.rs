@@ -298,6 +298,26 @@ impl InferenceBackend for FfiBackend {
         })
     }
 
+    fn infer_freeform(
+        &mut self,
+        features: Vec<f32>,
+        debug: Option<bool>,
+    ) -> Result<Vec<Vec<f32>>, EdgeImpulseError> {
+        let debug_enabled = debug.unwrap_or(false);
+
+        let signal = Signal::from_raw_data(&features).map_err(|e| {
+            EdgeImpulseError::InvalidOperation(format!(
+                "Failed to create signal from features: {e}"
+            ))
+        })?;
+
+        self.classifier
+            .run_classifier_freeform(&signal, debug_enabled)
+            .map_err(|e| {
+                EdgeImpulseError::InvalidOperation(format!("Failed to run freeform classifier: {e}"))
+            })
+    }
+
     fn parameters(&self) -> Result<&ModelParameters, EdgeImpulseError> {
         Ok(&self.parameters)
     }

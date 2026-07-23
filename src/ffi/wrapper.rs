@@ -700,6 +700,70 @@ impl EdgeImpulseClassifier {
         }
     }
 
+    /// Run the classifier and return the raw freeform output tensors.
+    ///
+    /// For freeform-output impulses (e.g. CRNN/OCR recognizers) the raw model
+    /// output tensors are not surfaced through `ei_impulse_result_t`. This runs
+    /// inference with application-allocated output buffers registered via the
+    /// SDK's `ei_set_freeform_output`, and returns one `Vec<f32>` per output
+    /// tensor. Returns an empty `Vec` for models that expose no freeform outputs.
+    ///
+    /// This method acquires the same global mutex as [`Self::run_classifier`] to
+    /// prevent concurrent access to the Edge Impulse C++ SDK's shared global
+    /// state (which includes the freeform-output pointer on the default impulse).
+    pub fn run_classifier_freeform(
+        &self,
+        _signal: &Signal,
+        _debug: bool,
+    ) -> EdgeImpulseResult<Vec<Vec<f32>>> {
+        #[cfg(feature = "ffi")]
+        {
+            if !self.initialized {
+                return Err(EdgeImpulseError::Other);
+            }
+            let _guard = CLASSIFIER_LOCK.lock().unwrap();
+
+            let n_outputs =
+                unsafe { edge_impulse_ffi_rs::bindings::ei_ffi_freeform_outputs_count() };
+
+            // Allocate one owned buffer per output tensor, sized per the model.
+            // `with_capacity` prevents `buffers` from reallocating, so the raw
+            // pointers pushed into `ptrs` stay valid for the FFI call.
+            let mut buffers: Vec<Vec<f32>> = Vec::with_capacity(n_outputs as usize);
+            let mut ptrs: Vec<*mut f32> = Vec::with_capacity(n_outputs as usize);
+            for ix in 0..n_outputs {
+                let size =
+                    unsafe { edge_impulse_ffi_rs::bindings::ei_ffi_freeform_output_size(ix) }
+                        as usize;
+                let mut buf = vec![0.0f32; size];
+                ptrs.push(buf.as_mut_ptr());
+                buffers.push(buf);
+            }
+
+            let result = InferenceResult::new();
+            let result_code = unsafe {
+                edge_impulse_ffi_rs::bindings::ei_ffi_run_classifier_freeform(
+                    _signal.as_ptr(),
+                    result.result,
+                    if _debug { 1 } else { 0 },
+                    ptrs.as_mut_ptr(),
+                    n_outputs as u32,
+                )
+            };
+
+            if result_code == edge_impulse_ffi_rs::bindings::EI_IMPULSE_ERROR::EI_IMPULSE_OK {
+                Ok(buffers)
+            } else {
+                Err(EdgeImpulseError::from(result_code))
+            }
+        }
+
+        #[cfg(not(feature = "ffi"))]
+        {
+            Err(EdgeImpulseError::Other)
+        }
+    }
+
     /// Run continuous classification on signal data
     ///
     /// This method acquires a global mutex to prevent concurrent access to

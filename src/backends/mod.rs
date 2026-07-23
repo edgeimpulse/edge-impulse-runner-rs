@@ -45,6 +45,23 @@ pub trait InferenceBackend: Send + Sync {
         debug: Option<bool>,
     ) -> Result<InferenceResponse, EdgeImpulseError>;
 
+    /// Run inference and return the raw freeform output tensors.
+    ///
+    /// For freeform-output impulses (e.g. CRNN/OCR recognizers) the model's raw
+    /// output tensors are not surfaced through the normal [`InferenceResponse`].
+    /// This returns one `Vec<f32>` per output tensor (empty for models without
+    /// freeform outputs). Backends that do not support it return
+    /// [`EdgeImpulseError::InvalidOperation`].
+    fn infer_freeform(
+        &mut self,
+        _features: Vec<f32>,
+        _debug: Option<bool>,
+    ) -> Result<Vec<Vec<f32>>, EdgeImpulseError> {
+        Err(EdgeImpulseError::InvalidOperation(
+            "freeform inference is not supported by this backend".to_string(),
+        ))
+    }
+
     /// Get model parameters
     fn parameters(&self) -> Result<&ModelParameters, EdgeImpulseError>;
 
