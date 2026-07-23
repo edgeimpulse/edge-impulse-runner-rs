@@ -878,6 +878,7 @@ pub struct ModelMetadataInfo {
     pub raw_sample_count: usize,
     pub raw_samples_per_frame: usize,
     pub input_features_count: usize,
+    pub resize_mode: usize,
 }
 
 impl fmt::Display for ModelMetadataInfo {
@@ -907,6 +908,11 @@ impl fmt::Display for ModelMetadataInfo {
         writeln!(f, "  Raw sample count: {}", self.raw_sample_count)?;
         writeln!(f, "  Raw samples per frame: {}", self.raw_samples_per_frame)?;
         writeln!(f, "  Input features count: {}", self.input_features_count)?;
+        writeln!(
+            f,
+            "  Resize mode: {}",
+            crate::types::resize_mode_to_str(self.resize_mode)
+        )?;
         Ok(())
     }
 }
@@ -1145,6 +1151,21 @@ impl ModelMetadata {
         }
     }
 
+    /// Edge Impulse `EI_CLASSIFIER_RESIZE_MODE` for the compiled model.
+    /// Ordering: 0 = none, 1 = fit-shortest, 2 = fit-longest, 3 = squash.
+    /// Without the `ffi` feature the model header is unavailable, so default to
+    /// 3 (squash), the historical runner behaviour.
+    pub fn resize_mode() -> usize {
+        #[cfg(feature = "ffi")]
+        {
+            edge_impulse_ffi_rs::model_metadata::EI_CLASSIFIER_RESIZE_MODE
+        }
+        #[cfg(not(feature = "ffi"))]
+        {
+            3
+        }
+    }
+
     pub fn get() -> ModelMetadataInfo {
         ModelMetadataInfo {
             input_width: Self::input_width(),
@@ -1166,6 +1187,7 @@ impl ModelMetadata {
             raw_sample_count: Self::raw_sample_count(),
             raw_samples_per_frame: Self::raw_samples_per_frame(),
             input_features_count: Self::input_features_count(),
+            resize_mode: Self::resize_mode(),
         }
     }
 }
