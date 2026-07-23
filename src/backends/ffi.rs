@@ -109,7 +109,7 @@ impl FfiBackend {
             image_input_frames: metadata.input_frames as u32,
             image_input_height: metadata.input_height as u32,
             image_input_width: metadata.input_width as u32,
-            image_resize_mode: "fit".to_string(), // Default resize mode
+            image_resize_mode: crate::types::resize_mode_to_str(metadata.resize_mode).to_string(),
             inferencing_engine: metadata.inferencing_engine as u32,
             input_features_count,
             interval_ms: metadata.interval_ms as f32,
