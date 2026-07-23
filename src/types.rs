@@ -60,7 +60,8 @@ pub struct ModelParameters {
     pub image_input_height: u32,
     /// Required width of input images in pixels
     pub image_input_width: u32,
-    /// Method used to resize input images ("fit" or "fill")
+    /// How input images are resized to the model input: one of "none",
+    /// "fit-shortest", "fit-longest", or "squash".
     pub image_resize_mode: String,
     /// Type of inferencing engine (0 = TensorFlow Lite, 1 = TensorFlow.js)
     pub inferencing_engine: u32,
@@ -83,6 +84,20 @@ pub struct ModelParameters {
     pub thresholds: Vec<ModelThreshold>,
     /// Whether the model supports continuous mode operation
     pub use_continuous_mode: bool,
+}
+
+/// Map an Edge Impulse `EI_CLASSIFIER_RESIZE_MODE` integer to the canonical
+/// resize-mode string used across the runner (`EI_RESIZE_STRINGS` ordering):
+/// 0 = none, 1 = fit-shortest, 2 = fit-longest, 3 = squash. Unknown values fall
+/// back to `"squash"`.
+pub fn resize_mode_to_str(mode: usize) -> &'static str {
+    match mode {
+        0 => "none",
+        1 => "fit-shortest",
+        2 => "fit-longest",
+        3 => "squash",
+        _ => "squash",
+    }
 }
 
 impl Default for ModelParameters {
@@ -277,5 +292,19 @@ impl From<i32> for SensorType {
             4 => SensorType::Positional,
             _ => SensorType::Unknown,
         }
+    }
+}
+
+#[cfg(test)]
+mod resize_mode_tests {
+    use super::resize_mode_to_str;
+
+    #[test]
+    fn maps_ei_resize_mode_ints_to_canonical_strings() {
+        assert_eq!(resize_mode_to_str(0), "none");
+        assert_eq!(resize_mode_to_str(1), "fit-shortest");
+        assert_eq!(resize_mode_to_str(2), "fit-longest");
+        assert_eq!(resize_mode_to_str(3), "squash");
+        assert_eq!(resize_mode_to_str(99), "squash"); // unknown -> safe default
     }
 }
