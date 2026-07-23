@@ -732,9 +732,8 @@ impl EdgeImpulseClassifier {
             let mut buffers: Vec<Vec<f32>> = Vec::with_capacity(n_outputs as usize);
             let mut ptrs: Vec<*mut f32> = Vec::with_capacity(n_outputs as usize);
             for ix in 0..n_outputs {
-                let size =
-                    unsafe { edge_impulse_ffi_rs::bindings::ei_ffi_freeform_output_size(ix) }
-                        as usize;
+                let size = unsafe { edge_impulse_ffi_rs::bindings::ei_ffi_freeform_output_size(ix) }
+                    as usize;
                 let mut buf = vec![0.0f32; size];
                 ptrs.push(buf.as_mut_ptr());
                 buffers.push(buf);

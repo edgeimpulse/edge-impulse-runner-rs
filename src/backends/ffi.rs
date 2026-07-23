@@ -314,7 +314,9 @@ impl InferenceBackend for FfiBackend {
         self.classifier
             .run_classifier_freeform(&signal, debug_enabled)
             .map_err(|e| {
-                EdgeImpulseError::InvalidOperation(format!("Failed to run freeform classifier: {e}"))
+                EdgeImpulseError::InvalidOperation(format!(
+                    "Failed to run freeform classifier: {e}"
+                ))
             })
     }
 
