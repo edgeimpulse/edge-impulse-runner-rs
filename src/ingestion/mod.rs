@@ -246,7 +246,10 @@ impl Ingestion {
         }
 
         debug!("Creating multipart form");
-        let form = reqwest::multipart::Form::new().text("data", json);
+        let data_part = reqwest::multipart::Part::text(json)
+            .file_name(format!("{}.json", params.device_id))
+            .mime_str("application/json")?;
+        let form = reqwest::multipart::Form::new().part("data", data_part);
 
         let mut headers = reqwest::header::HeaderMap::new();
         debug!("Setting up headers");
@@ -260,7 +263,7 @@ impl Ingestion {
 
         if self.debug {
             println!("=== Request Headers ===");
-            println!("{:#?}", &headers);
+            println!("{:#?}", headers);
         }
 
         let client = reqwest::Client::new();
@@ -355,7 +358,7 @@ impl Ingestion {
 
         if self.debug {
             println!("=== Request Headers ===");
-            println!("{:#?}", &headers);
+            println!("{:#?}", headers);
         }
 
         let client = reqwest::Client::new();
@@ -532,6 +535,44 @@ mod tests {
         });
 
         debug!("Test completed");
+    }
+
+    #[test]
+    fn test_upload_sends_data_as_json_file_part() {
+        let mut server = Server::new();
+
+        let mock = server
+            .mock("POST", "/api/training/data")
+            .match_body(mockito::Matcher::AllOf(vec![
+                mockito::Matcher::Regex(r#"name="data"; filename="test_device\.json""#.to_string()),
+                mockito::Matcher::Regex("Content-Type: application/json".to_string()),
+            ]))
+            .with_status(200)
+            .with_body("OK")
+            .expect(1)
+            .create();
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+
+        rt.block_on(async {
+            let ingestion = Ingestion::with_host("test_key".to_string(), server.url());
+
+            let params = UploadSampleParams {
+                device_id: "test_device",
+                device_type: "CUSTOM_DEVICE",
+                sensors: create_test_sensors(),
+                values: create_test_values(),
+                interval_ms: 100.0,
+                label: None,
+                category: "training",
+            };
+
+            let result = ingestion.upload_sample(params).await;
+
+            assert!(result.is_ok(), "Upload failed: {:?}", result.err());
+        });
+
+        mock.assert();
     }
 
     #[test]
