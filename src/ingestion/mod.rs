@@ -263,7 +263,7 @@ impl Ingestion {
 
         if self.debug {
             println!("=== Request Headers ===");
-            println!("{:#?}", &headers);
+            println!("{:#?}", headers);
         }
 
         let client = reqwest::Client::new();
@@ -358,7 +358,7 @@ impl Ingestion {
 
         if self.debug {
             println!("=== Request Headers ===");
-            println!("{:#?}", &headers);
+            println!("{:#?}", headers);
         }
 
         let client = reqwest::Client::new();
@@ -544,9 +544,7 @@ mod tests {
         let mock = server
             .mock("POST", "/api/training/data")
             .match_body(mockito::Matcher::AllOf(vec![
-                mockito::Matcher::Regex(
-                    r#"name="data"; filename="test_device\.json""#.to_string(),
-                ),
+                mockito::Matcher::Regex(r#"name="data"; filename="test_device\.json""#.to_string()),
                 mockito::Matcher::Regex("Content-Type: application/json".to_string()),
             ]))
             .with_status(200)
